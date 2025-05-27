@@ -1,0 +1,46 @@
+version: 2
+
+project_name: sitepanda
+before:
+  hooks:
+  - go mod tidy
+
+builds:
+  - id: sitepanda
+    binary: sitepanda
+    env:
+      - CGO_ENABLED=0
+    targets:
+      - linux_amd64
+      - darwin_arm64
+
+archives:
+  - formats: [tar.gz]
+    ids: [sitepanda]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+checksum:
+  name_template: 'checksums.txt'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  footer: >-
+
+    ---
+
+    Released by [GoReleaser](https://github.com/goreleaser/goreleaser).
+
+brews:
+  - repository:
+      owner: hokupod
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"

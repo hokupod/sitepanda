@@ -1,0 +1,5 @@
+.aider*
+embed/
+!embed/.keep
+# Added by goreleaser init:
+dist/
