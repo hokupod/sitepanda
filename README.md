@@ -130,11 +130,22 @@ Sitepanda supports two output formats:
 ## Installation and Setup
 
 1.  **Install Go:** Ensure you have Go installed (version 1.19 or newer recommended).
+    (This is required if you plan to build from source or use `go install`).
+
 2.  **Install Sitepanda:**
-    ```bash
-    go install github.com/hokupod/sitepanda@latest
-    ```
-    This will install the `sitepanda` binary to your Go bin directory (e.g., `~/go/bin`). Make sure this directory is in your system's `PATH`.
+
+    You can install Sitepanda using one of the following methods:
+
+    *   **Using Homebrew (macOS or Linuxbrew):**
+        ```bash
+        brew install hokupod/tap/sitepanda
+        ```
+    *   **Using `go install`:**
+        ```bash
+        go install github.com/hokupod/sitepanda@latest
+        ```
+        This will install the `sitepanda` binary to your Go bin directory (e.g., `~/go/bin`). Make sure this directory is in your system's `PATH`.
+
 3.  **Initialize Sitepanda:**
     Run the `init` command to download and set up the Lightpanda browser:
     ```bash
