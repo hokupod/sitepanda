@@ -1,6 +1,6 @@
 # Sitepanda
 
-Sitepanda is a command-line interface (CLI) tool written in Go. It is designed to scrape websites using the Lightpanda headless browser, starting from a user-provided URL. The primary goal is to extract the main readable content from web pages and save it as Markdown. This project is inspired by the functionality of `sitefetch`.
+Sitepanda is a command-line interface (CLI) tool written in Go. It is designed to scrape websites using the Lightpanda headless browser, starting from a user-provided URL. The primary goal is to extract the main readable content from web pages and save it as Markdown. This project is inspired by the functionality of [sitefetch](https://github.com/egoist/sitefetch).
 
 ## Features
 
