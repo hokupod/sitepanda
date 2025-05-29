@@ -60,7 +60,7 @@ func NewCrawler(startURLStr string, wsURL string, pageLimit int, matchPatternsRa
 	var compiledPatterns []glob.Glob
 	if len(matchPatternsRaw) > 0 {
 		for _, p := range matchPatternsRaw {
-			g, err := glob.Compile(p)
+			g, err := glob.Compile(p, '/')
 			if err != nil {
 				return nil, fmt.Errorf("invalid match pattern '%s': %w", p, err)
 			}
@@ -383,16 +383,16 @@ func (c *Crawler) shouldProcessContent(pageURL *url.URL) bool {
 	if len(c.matchPatterns) == 0 {
 		return true
 	}
-	path := pageURL.Path
-	if path == "" {
-		path = "/"
+	pathToMatch := pageURL.Path
+	if pathToMatch == "" {
+		pathToMatch = "/"
 	}
 	for _, g := range c.matchPatterns {
-		if g.Match(path) {
+		if g.Match(pathToMatch) {
 			return true
 		}
 	}
-	logger.Printf("URL %s (path: %s) did not match any patterns. Skipping content processing, but will still crawl for links.", pageURL.String(), path)
+	logger.Printf("Path %s did not match any patterns. Skipping content processing, but will still crawl for links.", pathToMatch)
 	return false
 }
 

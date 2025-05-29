@@ -319,16 +319,16 @@ func TestShouldProcessContent(t *testing.T) {
 			expectedResult: false,
 		},
 		{
-			name:           "pattern is just *",
+			name:           "pattern is just * (does not match non-empty paths)",
 			matchPatterns:  []string{"*"},
 			pageURLStr:     "http://example.com/anypage",
-			expectedResult: true,
+			expectedResult: false,
 		},
 		{
-			name:           "pattern is just *, root path",
+			name:           "pattern is just * (does not match root path)",
 			matchPatterns:  []string{"*"},
 			pageURLStr:     "http://example.com/",
-			expectedResult: true,
+			expectedResult: false,
 		},
 		{
 			name:           "pattern is just **, root path",
@@ -355,6 +355,60 @@ func TestShouldProcessContent(t *testing.T) {
 			expectedResult: false,
 			expectErr:      true,
 		},
+		{
+			name:           "subpath match with double wildcard",
+			matchPatterns:  []string{"/blog/**"},
+			pageURLStr:     "http://example.com/blog/2023/article123",
+			expectedResult: true,
+		},
+		{
+			name:           "subpath unmatch with double wildcard",
+			matchPatterns:  []string{"/blog/**"},
+			pageURLStr:     "http://example.com/news/2023/article123",
+			expectedResult: false,
+		},
+		{
+			name:           "root path with trailing slash",
+			matchPatterns:  []string{"/"},
+			pageURLStr:     "http://example.com/",
+			expectedResult: true,
+		},
+		{
+			name:           "exact path with query params should match",
+			matchPatterns:  []string{"/search"},
+			pageURLStr:     "http://example.com/search?q=golang",
+			expectedResult: true,
+		},
+		{
+			name:           "exact path with fragment should match",
+			matchPatterns:  []string{"/about"},
+			pageURLStr:     "http://example.com/about#team",
+			expectedResult: true,
+		},
+		{
+			name:           "multiple patterns match",
+			matchPatterns:  []string{"/contact", "/team/*"},
+			pageURLStr:     "http://example.com/team/john",
+			expectedResult: true,
+		},
+		{
+			name:           "japanese path match",
+			matchPatterns:  []string{"/日本語/**"},
+			pageURLStr:     "http://example.com/日本語/記事タイトル",
+			expectedResult: true,
+		},
+		{
+			name:           "single wildcard match with multiple segments",
+			matchPatterns:  []string{"/products/*"},
+			pageURLStr:     "http://example.com/products/widget123",
+			expectedResult: true,
+		},
+		{
+			name:           "single wildcard unmatch with multiple segments",
+			matchPatterns:  []string{"/products/*"},
+			pageURLStr:     "http://example.com/products/widget123/details",
+			expectedResult: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -362,7 +416,7 @@ func TestShouldProcessContent(t *testing.T) {
 			var compiledPatterns []glob.Glob
 			if tt.matchPatterns != nil {
 				for _, p := range tt.matchPatterns {
-					g, err := glob.Compile(p)
+					g, err := glob.Compile(p, '/')
 					if err != nil {
 						if tt.expectErr {
 							return

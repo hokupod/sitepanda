@@ -1,5 +1,4 @@
 .aider*
-embed/
-!embed/.keep
+sitepanda
 # Added by goreleaser init:
 dist/
