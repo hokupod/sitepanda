@@ -15,6 +15,7 @@ Sitepanda is a command-line interface (CLI) tool written in Go. It is designed t
 *   If the `--outfile` path ends with `.json`, output is in JSON format (an array of page objects).
 *   Provides options to filter pages by URL patterns (`--match`) and to stop crawling once a specified number of pages have had their content saved (`--limit`).
 *   Allows specifying a CSS selector (`--content-selector`) to target the main content area of a page for more precise extraction (this bypasses the default pre-filtering).
+*   Allows switching page load waiting strategy between `load` (default) and `networkidle` using the `--wait-for-network-idle` or `-wni` flag.
 
 ## Technical Stack
 
@@ -59,6 +60,7 @@ sitepanda [command] [options] <url>
 *   `-m, --match <pattern>`: Only extract content from matched pages (glob pattern, can be specified multiple times). Non-matching pages on the same domain are still crawled for links until the `--limit` is reached.
 *   `--limit <number>`: Stop crawling and fetching new pages once this many pages have had their content successfully saved (0 for no limit).
 *   `--content-selector <selector>`: Specify a CSS selector (e.g., `.article-body`) to identify the main content area of a page. If provided, `go-readability` will process only the content of the first matching element; the default HTML pre-filtering (of script, img, etc.) is skipped in this case. If the selector is provided but does not match any elements on the page, Sitepanda will fall back to processing the original, full HTML content without applying the default pre-filtering.
+*   `--wait-for-network-idle, -wni`: Wait for network to be idle instead of just `load` (default) when fetching pages. This can be useful for pages that load content dynamically after the initial `load` event.
 *   `--silent`: Do not print any logs.
 *   `--version`: Show version information.
 
@@ -72,6 +74,7 @@ sitepanda [command] [options] <url>
 *   A set (or map) tracks visited URLs to prevent re-fetching and loops.
 *   Links are filtered to ensure they are on the same host as the starting URL and use HTTP/HTTPS.
 *   Connection to the browser (Lightpanda via CDP, Chromium via Playwright launch) for robust interaction with dynamic web pages.
+*   Page fetching waits for the `load` event by default. If `--wait-for-network-idle` or `-wni` is specified, it waits for the network to become idle.
 *   If a `--content-selector` is provided, Sitepanda attempts to extract HTML from the first matching element. This specific HTML is then passed to the readability engine.
 *   If no `--content-selector` is provided, Sitepanda performs a pre-filtering step on the full HTML: it removes all `<script>`, `<style>`, `<link>`, `<img>`, and `<video>` tags. The resulting modified HTML is then passed to the readability engine.
 *   The `--match` option determines if a page's content is extracted and saved.
@@ -122,6 +125,7 @@ Sitepanda supports two output formats:
 **Current Functionality:**
 *   CLI with `init [browser]` command for Lightpanda or Chromium setup.
 *   CLI flags for URL, outfile (supports `.json` for JSON output), limit, match, content-selector, silent, version, and `browser` (with `-b` shorthand).
+*   CLI flag `--wait-for-network-idle` (with `-wni` shorthand) to control page load waiting strategy.
 *   Support for `SITEPANDA_BROWSER` environment variable to set the default browser.
 *   Dynamic download, installation, and launching/termination of browser dependencies (Lightpanda or Chromium via Playwright).
 *   Connection to Lightpanda via CDP or launch/control of Chromium via Playwright for robust interaction with dynamic web pages.
@@ -222,6 +226,12 @@ sitepanda --browser chromium --outfile output.json --content-selector ".main-art
 
 # Scrape using Chromium (specified via environment variable) and output to stdout
 SITEPANDA_BROWSER=chromium sitepanda https://example.com
+
+# Scrape using Lightpanda, wait for network idle (long option), and output to JSON
+sitepanda --wait-for-network-idle --outfile output.json https://example.com
+
+# Scrape using Lightpanda, wait for network idle (shorthand option), and output to JSON
+sitepanda -wni --outfile output.json https://example.com
 ```
 
 To run the tests:
@@ -237,8 +247,10 @@ Sitepanda is licensed under the [MIT License](LICENSE).
 
 *   **Testing (Unit Tests):**
     *   Ensure comprehensive unit tests for new path management and `init` command logic for both browsers.
+    *   Add unit tests for the `--wait-for-network-idle` / `-wni` flag logic.
 *   **Testing (Integration Tests):**
     *   Develop integration tests for the end-to-end scraping process with both Lightpanda and Chromium, including the `init` flow.
+    *   Include test cases for different page load waiting strategies.
 *   **Robustness and Error Handling:**
     *   Further refine error handling for `sitepanda init [browser]` (network issues, disk space, permissions).
 *   **CLI Refinements:**

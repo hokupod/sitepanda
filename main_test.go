@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func setupTestFlagsAndParse(t *testing.T, args []string) (calculatedDefaultBrowser string, finalBrowserName string, parseErr error) {
+func setupTestFlagsAndParse(t *testing.T, args []string) (calculatedDefaultBrowser string, finalBrowserName string, finalWaitForNetworkIdle bool, parseErr error) {
 	t.Helper()
 
 	originalOsArgs := os.Args
@@ -35,6 +35,7 @@ func setupTestFlagsAndParse(t *testing.T, args []string) (calculatedDefaultBrows
 	var dummyString string
 	var dummyStringSlice stringSlice
 	var dummyBool bool
+	var capturedWaitForNetworkIdle bool
 	testFlagSet.IntVar(&dummyInt, "limit", 0, "dummy limit")
 	testFlagSet.StringVar(&dummyString, "outfile", "", "dummy outfile")
 	testFlagSet.StringVar(&dummyString, "o", "", "dummy o")
@@ -43,14 +44,16 @@ func setupTestFlagsAndParse(t *testing.T, args []string) (calculatedDefaultBrows
 	testFlagSet.StringVar(&dummyString, "content-selector", "", "dummy selector")
 	testFlagSet.BoolVar(&dummyBool, "silent", false, "dummy silent")
 	testFlagSet.BoolVar(&dummyBool, "version", false, "dummy version")
+	testFlagSet.BoolVar(&capturedWaitForNetworkIdle, "wait-for-network-idle", false, "dummy wni long")
+	testFlagSet.BoolVar(&capturedWaitForNetworkIdle, "wni", false, "dummy wni short")
 
 	parseErr = testFlagSet.Parse(os.Args[1:])
 	if parseErr != nil {
-		return calculatedDefaultBrowser, "", parseErr
+		return calculatedDefaultBrowser, "", false, parseErr
 	}
 	finalBrowserName = capturedBrowserName
-
-	return calculatedDefaultBrowser, finalBrowserName, nil
+	finalWaitForNetworkIdle = capturedWaitForNetworkIdle
+	return calculatedDefaultBrowser, finalBrowserName, finalWaitForNetworkIdle, nil
 }
 
 func TestBrowserSelectionLogic(t *testing.T) {
@@ -64,82 +67,125 @@ func TestBrowserSelectionLogic(t *testing.T) {
 	}()
 
 	tests := []struct {
-		name                      string
-		envVarValue               string
-		cliArgs                   []string
-		expectedDefaultBrowserVal string
-		expectedFinalBrowserName  string
-		expectParseError          bool
+		name                       string
+		envVarValue                string
+		cliArgs                    []string
+		expectedDefaultBrowserVal  string
+		expectedFinalBrowserName   string
+		expectedWaitForNetworkIdle bool
+		expectParseError           bool
 	}{
 		{
-			name:                      "default (no env, no browser args)",
-			envVarValue:               "UNSET",
-			cliArgs:                   []string{"http://example.com"},
-			expectedDefaultBrowserVal: "lightpanda",
-			expectedFinalBrowserName:  "lightpanda",
+			name:                       "default (no env, no browser args)",
+			envVarValue:                "UNSET",
+			cliArgs:                    []string{"http://example.com"},
+			expectedDefaultBrowserVal:  "lightpanda",
+			expectedFinalBrowserName:   "lightpanda",
+			expectedWaitForNetworkIdle: false,
 		},
 		{
-			name:                      "env lightpanda, no browser args",
-			envVarValue:               "lightpanda",
-			cliArgs:                   []string{"http://example.com"},
-			expectedDefaultBrowserVal: "lightpanda",
-			expectedFinalBrowserName:  "lightpanda",
+			name:                       "env lightpanda, no browser args",
+			envVarValue:                "lightpanda",
+			cliArgs:                    []string{"http://example.com"},
+			expectedDefaultBrowserVal:  "lightpanda",
+			expectedFinalBrowserName:   "lightpanda",
+			expectedWaitForNetworkIdle: false,
 		},
 		{
-			name:                      "env chromium, no browser args",
-			envVarValue:               "chromium",
-			cliArgs:                   []string{"http://example.com"},
-			expectedDefaultBrowserVal: "chromium",
-			expectedFinalBrowserName:  "chromium",
+			name:                       "env chromium, no browser args",
+			envVarValue:                "chromium",
+			cliArgs:                    []string{"http://example.com"},
+			expectedDefaultBrowserVal:  "chromium",
+			expectedFinalBrowserName:   "chromium",
+			expectedWaitForNetworkIdle: false,
 		},
 		{
-			name:                      "env invalid, no browser args",
-			envVarValue:               "firefox",
-			cliArgs:                   []string{"http://example.com"},
-			expectedDefaultBrowserVal: "lightpanda",
-			expectedFinalBrowserName:  "lightpanda",
+			name:                       "env invalid, no browser args",
+			envVarValue:                "firefox",
+			cliArgs:                    []string{"http://example.com"},
+			expectedDefaultBrowserVal:  "lightpanda",
+			expectedFinalBrowserName:   "lightpanda",
+			expectedWaitForNetworkIdle: false,
 		},
 		{
-			name:                      "arg -b chromium, no env",
-			envVarValue:               "UNSET",
-			cliArgs:                   []string{"-b", "chromium", "http://example.com"},
-			expectedDefaultBrowserVal: "lightpanda",
-			expectedFinalBrowserName:  "chromium",
+			name:                       "arg -b chromium, no env",
+			envVarValue:                "UNSET",
+			cliArgs:                    []string{"-b", "chromium", "http://example.com"},
+			expectedDefaultBrowserVal:  "lightpanda",
+			expectedFinalBrowserName:   "chromium",
+			expectedWaitForNetworkIdle: false,
 		},
 		{
-			name:                      "arg --browser chromium, no env",
-			envVarValue:               "UNSET",
-			cliArgs:                   []string{"--browser", "chromium", "http://example.com"},
-			expectedDefaultBrowserVal: "lightpanda",
-			expectedFinalBrowserName:  "chromium",
+			name:                       "arg --browser chromium, no env",
+			envVarValue:                "UNSET",
+			cliArgs:                    []string{"--browser", "chromium", "http://example.com"},
+			expectedDefaultBrowserVal:  "lightpanda",
+			expectedFinalBrowserName:   "chromium",
+			expectedWaitForNetworkIdle: false,
 		},
 		{
-			name:                      "env lightpanda, arg -b chromium",
-			envVarValue:               "lightpanda",
-			cliArgs:                   []string{"-b", "chromium", "http://example.com"},
-			expectedDefaultBrowserVal: "lightpanda",
-			expectedFinalBrowserName:  "chromium",
+			name:                       "env lightpanda, arg -b chromium",
+			envVarValue:                "lightpanda",
+			cliArgs:                    []string{"-b", "chromium", "http://example.com"},
+			expectedDefaultBrowserVal:  "lightpanda",
+			expectedFinalBrowserName:   "chromium",
+			expectedWaitForNetworkIdle: false,
 		},
 		{
-			name:                      "env chromium, arg --browser lightpanda",
-			envVarValue:               "chromium",
-			cliArgs:                   []string{"--browser", "lightpanda", "http://example.com"},
-			expectedDefaultBrowserVal: "chromium",
-			expectedFinalBrowserName:  "lightpanda",
+			name:                       "env chromium, arg --browser lightpanda",
+			envVarValue:                "chromium",
+			cliArgs:                    []string{"--browser", "lightpanda", "http://example.com"},
+			expectedDefaultBrowserVal:  "chromium",
+			expectedFinalBrowserName:   "lightpanda",
+			expectedWaitForNetworkIdle: false,
 		},
 		{
-			name:                      "env invalid, arg -b chromium",
-			envVarValue:               "firefox",
-			cliArgs:                   []string{"-b", "chromium", "http://example.com"},
-			expectedDefaultBrowserVal: "lightpanda",
-			expectedFinalBrowserName:  "chromium",
+			name:                       "env invalid, arg -b chromium",
+			envVarValue:                "firefox",
+			cliArgs:                    []string{"-b", "chromium", "http://example.com"},
+			expectedDefaultBrowserVal:  "lightpanda",
+			expectedFinalBrowserName:   "chromium",
+			expectedWaitForNetworkIdle: false,
 		},
 		{
-			name:                      "unknown flag causes parse error",
-			envVarValue:               "UNSET",
-			cliArgs:                   []string{"--unknown-flag", "http://example.com"},
-			expectedDefaultBrowserVal: "lightpanda",
-			expectParseError:          true,
+			name:                       "arg -wni, no env",
+			envVarValue:                "UNSET",
+			cliArgs:                    []string{"-wni", "http://example.com"},
+			expectedDefaultBrowserVal:  "lightpanda",
+			expectedFinalBrowserName:   "lightpanda",
+			expectedWaitForNetworkIdle: true,
+		},
+		{
+			name:                       "arg --wait-for-network-idle, no env",
+			envVarValue:                "UNSET",
+			cliArgs:                    []string{"--wait-for-network-idle", "http://example.com"},
+			expectedDefaultBrowserVal:  "lightpanda",
+			expectedFinalBrowserName:   "lightpanda",
+			expectedWaitForNetworkIdle: true,
+		},
+		{
+			name:                       "arg -wni and -b chromium, no env",
+			envVarValue:                "UNSET",
+			cliArgs:                    []string{"-wni", "-b", "chromium", "http://example.com"},
+			expectedDefaultBrowserVal:  "lightpanda",
+			expectedFinalBrowserName:   "chromium",
+			expectedWaitForNetworkIdle: true,
+		},
+		{
+			name:                       "arg --wait-for-network-idle and --browser chromium, env lightpanda",
+			envVarValue:                "lightpanda",
+			cliArgs:                    []string{"--wait-for-network-idle", "--browser", "chromium", "http://example.com"},
+			expectedDefaultBrowserVal:  "lightpanda",
+			expectedFinalBrowserName:   "chromium",
+			expectedWaitForNetworkIdle: true,
+		},
+		{
+			name:                       "unknown flag causes parse error",
+			envVarValue:                "UNSET",
+			cliArgs:                    []string{"--unknown-flag", "http://example.com"},
+			expectedDefaultBrowserVal:  "lightpanda",
+			expectedWaitForNetworkIdle: false,
+			expectParseError:           true,
 		},
 	}
 
@@ -151,11 +197,11 @@ func TestBrowserSelectionLogic(t *testing.T) {
 				os.Setenv("SITEPANDA_BROWSER", tt.envVarValue)
 			}
 
-			calculatedDefault, finalBrowser, err := setupTestFlagsAndParse(t, tt.cliArgs)
+			calculatedDefault, finalBrowser, finalWNI, err := setupTestFlagsAndParse(t, tt.cliArgs)
 
 			if tt.expectParseError {
 				if err == nil {
-					t.Errorf("expected a parse error, but got nil. Final browser: %s", finalBrowser)
+					t.Errorf("expected a parse error, but got nil. Final browser: %s, final WNI: %t", finalBrowser, finalWNI)
 				}
 				return
 			}
@@ -171,6 +217,11 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			if finalBrowser != tt.expectedFinalBrowserName {
 				t.Errorf("Final browserName mismatch: got %q, want %q (env: %q, args: %v)",
 					finalBrowser, tt.expectedFinalBrowserName, tt.envVarValue, tt.cliArgs)
+			}
+
+			if finalWNI != tt.expectedWaitForNetworkIdle {
+				t.Errorf("Final waitForNetworkIdle mismatch: got %t, want %t (env: %q, args: %v)",
+					finalWNI, tt.expectedWaitForNetworkIdle, tt.envVarValue, tt.cliArgs)
 			}
 		})
 	}

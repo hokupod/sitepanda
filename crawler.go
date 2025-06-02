@@ -14,21 +14,20 @@ import (
 	"github.com/playwright-community/playwright-go"
 )
 
-// JSONOutputPage defines the structure for each page in the JSON output.
 type JSONOutputPage struct {
 	Title   string `json:"title"`
 	URL     string `json:"url"`
 	Content string `json:"content"`
 }
 
-// Crawler holds the state and configuration for a crawl session.
 type Crawler struct {
-	startURL        *url.URL
-	pageLimit       int
-	matchPatterns   []glob.Glob
-	contentSelector string
-	outfile         string
-	silent          bool
+	startURL           *url.URL
+	pageLimit          int
+	matchPatterns      []glob.Glob
+	contentSelector    string
+	outfile            string
+	silent             bool
+	waitForNetworkIdle bool
 
 	visited map[string]bool
 	results []PageData
@@ -74,6 +73,7 @@ func newCrawlerCommon(
 	contentSelector string,
 	outfile string,
 	silent bool,
+	waitForNetworkIdle bool,
 	rootContext context.Context,
 	rootCancelFunc context.CancelFunc,
 ) (*Crawler, error) {
@@ -139,19 +139,20 @@ func newCrawlerCommon(
 	normStartURLStr := parsedStartURL.String()
 
 	crawler := &Crawler{
-		startURL:        parsedStartURL,
-		pageLimit:       pageLimit,
-		matchPatterns:   compiledPatterns,
-		contentSelector: contentSelector,
-		outfile:         outfile,
-		silent:          silent,
-		visited:         map[string]bool{normStartURLStr: true},
-		results:         make([]PageData, 0),
-		rootCtx:         rootContext,
-		cancel:          rootCancelFunc,
-		pwBrowser:       pwB,
-		pwContext:       browserCtx,
-		page:            p,
+		startURL:           parsedStartURL,
+		pageLimit:          pageLimit,
+		matchPatterns:      compiledPatterns,
+		contentSelector:    contentSelector,
+		outfile:            outfile,
+		silent:             silent,
+		waitForNetworkIdle: waitForNetworkIdle,
+		visited:            map[string]bool{normStartURLStr: true},
+		results:            make([]PageData, 0),
+		rootCtx:            rootContext,
+		cancel:             rootCancelFunc,
+		pwBrowser:          pwB,
+		pwContext:          browserCtx,
+		page:               p,
 	}
 
 	return crawler, nil
@@ -166,6 +167,7 @@ func NewCrawlerForLightpanda(
 	contentSelector string,
 	outfile string,
 	silent bool,
+	waitForNetworkIdle bool,
 ) (*Crawler, error) {
 	parsedStartURL, compiledPatterns, err := parseCrawlerArgs(startURLStr, matchPatternsRaw)
 	if err != nil {
@@ -184,7 +186,7 @@ func NewCrawlerForLightpanda(
 	}
 	logger.Printf("Playwright successfully connected to Lightpanda at %s", wsURL)
 
-	return newCrawlerCommon(parsedStartURL, browser, pageLimit, compiledPatterns, contentSelector, outfile, silent, rootCtxForCrawler, rootCrawlerCancel)
+	return newCrawlerCommon(parsedStartURL, browser, pageLimit, compiledPatterns, contentSelector, outfile, silent, waitForNetworkIdle, rootCtxForCrawler, rootCrawlerCancel)
 }
 
 func NewCrawlerForPlaywrightBrowser(
@@ -195,13 +197,14 @@ func NewCrawlerForPlaywrightBrowser(
 	contentSelector string,
 	outfile string,
 	silent bool,
+	waitForNetworkIdle bool,
 ) (*Crawler, error) {
 	parsedStartURL, compiledPatterns, err := parseCrawlerArgs(startURLStr, matchPatternsRaw)
 	if err != nil {
 		return nil, err
 	}
 	rootCtxForCrawler, rootCrawlerCancel := context.WithCancel(context.Background())
-	return newCrawlerCommon(parsedStartURL, pwB, pageLimit, compiledPatterns, contentSelector, outfile, silent, rootCtxForCrawler, rootCrawlerCancel)
+	return newCrawlerCommon(parsedStartURL, pwB, pageLimit, compiledPatterns, contentSelector, outfile, silent, waitForNetworkIdle, rootCtxForCrawler, rootCrawlerCancel)
 }
 
 func (c *Crawler) Crawl() error {
@@ -257,7 +260,7 @@ func (c *Crawler) Crawl() error {
 				fetchErr = c.rootCtx.Err()
 				break
 			}
-			htmlContent, fetchErr = fetchPageHTML(c.page, c.rootCtx, currentURLStr)
+			htmlContent, fetchErr = fetchPageHTML(c.page, c.rootCtx, currentURLStr, c.waitForNetworkIdle)
 			if fetchErr == nil {
 				break
 			}

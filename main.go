@@ -18,17 +18,18 @@ import (
 	"github.com/playwright-community/playwright-go"
 )
 
-const version = "0.0.3"
+const version = "0.0.4"
 const lightpandaNightlyVersion = "nightly"
 
 var (
-	outfile         string
-	matchPatterns   stringSlice
-	pageLimit       int
-	contentSelector string
-	silent          bool
-	showVersion     bool
-	browserName     string
+	outfile            string
+	matchPatterns      stringSlice
+	pageLimit          int
+	contentSelector    string
+	silent             bool
+	showVersion        bool
+	waitForNetworkIdle bool
+	browserName        string
 )
 
 var logger = log.New(os.Stdout, "", log.LstdFlags)
@@ -65,6 +66,8 @@ func main() {
 	flag.StringVar(&contentSelector, "content-selector", "", "CSS selector to find the main content area (e.g., .article-body)")
 	flag.BoolVar(&silent, "silent", false, "Do not print any logs")
 	flag.BoolVar(&showVersion, "version", false, "Show version information")
+	flag.BoolVar(&waitForNetworkIdle, "wait-for-network-idle", false, "Wait for network to be idle instead of just load when fetching pages")
+	flag.BoolVar(&waitForNetworkIdle, "wni", false, "Shorthand for --wait-for-network-idle")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [command] [options] <url>\n\n", os.Args[0])
@@ -77,13 +80,22 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  <url>                     Start scraping from the given URL (default command if no other command is specified).\n\n")
 		fmt.Fprintf(os.Stderr, "Options for scraping (when <url> is provided):\n")
 		fmt.Fprintf(os.Stderr, "  --browser <name>, -b <name> Browser to use (lightpanda or chromium). Default: %s (or SITEPANDA_BROWSER value)\n", defaultBrowser)
-		flag.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "  -o, --outfile <path>          Write the fetched site to a text file. If path ends with .json, output is JSON.\n")
+		fmt.Fprintf(os.Stderr, "  -m, --match <pattern>         Only extract content from matched pages (glob pattern, can be specified multiple times).\n")
+		fmt.Fprintf(os.Stderr, "  --limit <number>              Stop crawling once this many pages have had their content saved (0 for no limit).\n")
+		fmt.Fprintf(os.Stderr, "  --content-selector <selector> Specify a CSS selector to target the main content area.\n")
+		fmt.Fprintf(os.Stderr, "  --wait-for-network-idle, -wni Wait for network to be idle instead of just load when fetching pages.\n")
+		fmt.Fprintf(os.Stderr, "  --silent                      Do not print any logs.\n")
+		fmt.Fprintf(os.Stderr, "  --version                     Show version information.\n")
+
 		fmt.Fprintf(os.Stderr, "\nExample:\n")
 		fmt.Fprintf(os.Stderr, "  %s init\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s init chromium\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  SITEPANDA_BROWSER=chromium %s --outfile output.json https://example.com\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s --browser chromium --outfile output.json https://example.com\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -b chromium --outfile output.json https://example.com\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s --wait-for-network-idle --outfile output.json https://example.com\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -wni --outfile output.json https://example.com\n", os.Args[0])
 	}
 
 	flag.Parse()
@@ -211,14 +223,15 @@ func main() {
 	logger.Printf("  Page Limit: %d", pageLimit)
 	logger.Printf("  Content Selector: %s", contentSelector)
 	logger.Printf("  Silent: %t", silent)
+	logger.Printf("  Wait For Network Idle: %t", waitForNetworkIdle)
 
 	var crawler *Crawler
 	var crawlerErr error
 
 	if browserName == "lightpanda" {
-		crawler, crawlerErr = NewCrawlerForLightpanda(startURL, wsURL, pwInstance, pageLimit, matchPatterns, contentSelector, outfile, silent)
+		crawler, crawlerErr = NewCrawlerForLightpanda(startURL, wsURL, pwInstance, pageLimit, matchPatterns, contentSelector, outfile, silent, waitForNetworkIdle)
 	} else if browserName == "chromium" {
-		crawler, crawlerErr = NewCrawlerForPlaywrightBrowser(startURL, pwBrowser, pageLimit, matchPatterns, contentSelector, outfile, silent)
+		crawler, crawlerErr = NewCrawlerForPlaywrightBrowser(startURL, pwBrowser, pageLimit, matchPatterns, contentSelector, outfile, silent, waitForNetworkIdle)
 	} else {
 		logger.Fatalf("Unsupported browser for crawler creation: %s", browserName)
 	}

@@ -10,13 +10,13 @@ import (
 	"github.com/playwright-community/playwright-go"
 )
 
-func fetchPageHTML(page playwright.Page, parentCtx context.Context, pageURL string) (string, error) {
+func fetchPageHTML(page playwright.Page, parentCtx context.Context, pageURL string, waitForNetworkIdle bool) (string, error) {
 	opTimeout := 120 * time.Second
 	ctx, cancel := context.WithTimeout(parentCtx, opTimeout)
 	defer cancel()
 
 	var htmlContent string
-	logger.Printf("Fetching HTML for %s (using Playwright page: %p, closed: %t)", pageURL, page, page.IsClosed())
+	logger.Printf("Fetching HTML for %s (using Playwright page: %p, closed: %t, waitForNetworkIdle: %t)", pageURL, page, page.IsClosed(), waitForNetworkIdle)
 
 	type result struct {
 		content string
@@ -35,13 +35,15 @@ func fetchPageHTML(page playwright.Page, parentCtx context.Context, pageURL stri
 			return
 		}
 
-		pwTimeoutMs := float64((opTimeout - 5*time.Second).Milliseconds())
-		if pwTimeoutMs < 1000 {
-			pwTimeoutMs = 1000
+		pwTimeoutMs := max(float64((opTimeout - 5*time.Second).Milliseconds()), 1000)
+		waitUntilState := playwright.WaitUntilStateLoad
+		if waitForNetworkIdle {
+			waitUntilState = playwright.WaitUntilStateNetworkidle
 		}
+
 		_, err := page.Goto(pageURL, playwright.PageGotoOptions{
 			Timeout:   playwright.Float(pwTimeoutMs),
-			WaitUntil: playwright.WaitUntilStateLoad,
+			WaitUntil: waitUntilState,
 		})
 
 		if err != nil {
