@@ -7,48 +7,48 @@ import (
 	"runtime"
 )
 
-const lightpandaExecutableName = "lightpanda"
+const defaultLightpandaExecutableName = "lightpanda"
+
 
 // userHomeDir is a variable to allow mocking os.UserHomeDir in tests.
 var userHomeDir = os.UserHomeDir
 
-// getAppSubdirectory creates and returns an application-specific directory path.
-// Linux: $XDG_DATA_HOME/sitepanda/subPath... or ~/.local/share/sitepanda/subPath...
-// macOS: ~/Library/Application Support/Sitepanda/subPath...
 func getAppSubdirectory(subPath ...string) (string, error) {
 	var baseDir string
 	var err error
+ 
 	var appDirName string
 
 	switch runtime.GOOS {
 	case "linux":
 		xdgDataHome := os.Getenv("XDG_DATA_HOME")
 		if xdgDataHome == "" {
-			homeDir, err := userHomeDir()
-			if err != nil {
-				return "", fmt.Errorf("failed to get user home directory: %w", err)
+			homeDir, errHome := userHomeDir()
+			if errHome != nil {
+				return "", fmt.Errorf("failed to get user home directory: %w", errHome)
 			}
 			baseDir = filepath.Join(homeDir, ".local", "share")
 		} else {
 			baseDir = xdgDataHome
 		}
-		appDirName = "sitepanda" // Lowercase 's' for Linux
+		appDirName = "sitepanda"
 	case "darwin": // macOS
-		homeDir, err := userHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("failed to get user home directory: %w", err)
+		homeDir, errHome := userHomeDir()
+		if errHome != nil {
+			return "", fmt.Errorf("failed to get user home directory: %w", errHome)
 		}
 		baseDir = filepath.Join(homeDir, "Library", "Application Support")
-		appDirName = "Sitepanda" // Uppercase 'S' for macOS
+		appDirName = "Sitepanda"
 	default:
-		return "", fmt.Errorf("unsupported OS for Lightpanda installation: %s. Only Linux and macOS are supported", runtime.GOOS)
+  
+		return "", fmt.Errorf("unsupported OS for general app subdirectory: %s. This function is for Sitepanda's own directories like 'bin' or 'playwright_driver'", runtime.GOOS)
 	}
 
-	appSpecificPath := []string{baseDir, appDirName}
-	appSpecificPath = append(appSpecificPath, subPath...)
-	fullPath := filepath.Join(appSpecificPath...)
+	appSpecificPathElements := []string{baseDir, appDirName}
+	appSpecificPathElements = append(appSpecificPathElements, subPath...)
+	fullPath := filepath.Join(appSpecificPathElements...)
 
-	err = os.MkdirAll(fullPath, 0755) // 0755 gives rwx for owner, rx for group/others
+	err = os.MkdirAll(fullPath, 0755)
 	if err != nil {
 		return "", fmt.Errorf("failed to create directory %s: %w", fullPath, err)
 	}
@@ -56,15 +56,46 @@ func getAppSubdirectory(subPath ...string) (string, error) {
 	return fullPath, nil
 }
 
-// getLightpandaExecutablePathActual is the actual implementation of getLightpandaExecutablePath.
-var getLightpandaExecutablePathActual = func() (string, error) {
-	binDir, err := getAppSubdirectory("bin")
-	if err != nil {
-		return "", fmt.Errorf("failed to get application binary directory: %w", err)
+// getBrowserExecutablePathActual is the actual implementation of getBrowserExecutablePath.
+// For Chromium, baseInstallDir is the Playwright DriverDirectory.
+// Returns a path hint for Chromium. Playwright itself is responsible for finding the exact executable.
+var getBrowserExecutablePathActual = func(browserName string, baseInstallDir ...string) (string, error) {
+	switch browserName {
+	case "lightpanda":
+  // Lightpanda is installed in Sitepanda's own 'bin' directory.
+		sitepandaBinDir, err := getAppSubdirectory("bin")
+		if err != nil {
+			return "", fmt.Errorf("failed to get application binary directory for Lightpanda: %w", err)
+		}
+		return filepath.Join(sitepandaBinDir, defaultLightpandaExecutableName), nil
+	case "chromium":
+		if len(baseInstallDir) == 0 || baseInstallDir[0] == "" {
+			return "", fmt.Errorf("baseInstallDir (Playwright DriverDirectory) is required for Chromium path hint")
+		}
+  
+		var playwrightVersion string
+		playwrightVersion = "unknown-pw-version"
+
+		var chromiumPathHint string
+		switch runtime.GOOS {
+		case "linux":
+   
+			chromiumPathHint = filepath.Join(baseInstallDir[0], "ms-playwright", playwrightVersion, "chromium", "linux", "chrome")
+		case "darwin":
+   
+			chromiumPathHint = filepath.Join(baseInstallDir[0], "ms-playwright", playwrightVersion, "chromium", "mac", "Chromium.app", "Contents", "MacOS", "Chromium")
+		case "windows":
+   
+			chromiumPathHint = filepath.Join(baseInstallDir[0], "ms-playwright", playwrightVersion, "chromium", "win64", "chrome.exe")
+		default:
+			return "", fmt.Errorf("chromium path hint generation not supported for OS: %s", runtime.GOOS)
+		}
+  
+		return chromiumPathHint, fmt.Errorf("path hint for Chromium (%s) is unreliable; Playwright should auto-detect. Error returned to indicate this", chromiumPathHint)
+	default:
+		return "", fmt.Errorf("unsupported browser name for path: %s", browserName)
 	}
-	return filepath.Join(binDir, lightpandaExecutableName), nil
 }
 
-// getLightpandaExecutablePath is a variable assigned the actual function,
-// allowing it to be mocked for testing.
-var getLightpandaExecutablePath = getLightpandaExecutablePathActual
+// getBrowserExecutablePath is assigned to the actual function to allow mocking in tests.
+var getBrowserExecutablePath = getBrowserExecutablePathActual

@@ -29,14 +29,12 @@ func fetchPageHTML(page playwright.Page, parentCtx context.Context, pageURL stri
 			resultChan <- result{err: fmt.Errorf("playwright page for %s is already closed before navigation (Playwright connection issue)", pageURL)}
 			return
 		}
-		// page.Context().Browser() can be nil if page is detached.
 		browser := page.Context().Browser()
 		if browser == nil || !browser.IsConnected() {
 			resultChan <- result{err: fmt.Errorf("playwright browser for page %s is not connected (Playwright connection issue)", pageURL)}
 			return
 		}
 
-		// For page.Goto, we use its own Timeout field. The overall `ctx` is for the select.
 		pwTimeoutMs := float64((opTimeout - 5*time.Second).Milliseconds())
 		if pwTimeoutMs < 1000 {
 			pwTimeoutMs = 1000
@@ -64,8 +62,6 @@ func fetchPageHTML(page playwright.Page, parentCtx context.Context, pageURL stri
 			return
 		}
 
-		// Playwright's Go client page.Content() doesn't directly take a context.
-		// So, the goroutine + select is the primary mechanism for its timeout/cancellation.
 		content, err := page.Content()
 		if err != nil {
 			if strings.Contains(err.Error(), "Target page, context or browser has been closed") || strings.Contains(err.Error(), "Target closed") {

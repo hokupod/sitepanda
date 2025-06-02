@@ -3,13 +3,12 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 )
 
 func prepareLightpanda() (executablePath string, cleanupFunc func(), err error) {
-	lpPath, err := getLightpandaExecutablePath()
+	lpPath, err := getBrowserExecutablePath("lightpanda")
 	if err != nil {
 		return "", func() {}, fmt.Errorf("could not determine Lightpanda executable path: %w", err)
 	}
@@ -26,28 +25,14 @@ func prepareLightpanda() (executablePath string, cleanupFunc func(), err error) 
 		return "", func() {}, fmt.Errorf("expected Lightpanda executable at %s, but found a directory. Please check the installation or run 'sitepanda init' again", lpPath)
 	}
 
-	// On Unix-like systems, os.Stat returning successfully for a file implies it's accessible.
-	// The execute permission is set during 'sitepanda init'.
-
+	// On Unix-like systems, a successful os.Stat means the file is accessible.
+	// The executable permission is set during 'sitepanda init'.
 	logger.Printf("Using Lightpanda binary from: %s", lpPath)
-	// Cleanup function is now a no-op as we are not managing temporary files for Lightpanda.
+	// No temporary files are managed for Lightpanda, so the cleanup function does nothing.
 	return lpPath, func() {
+		// No cleanup needed for externally managed Lightpanda binary.
 		logger.Printf("No cleanup needed for externally managed Lightpanda binary at %s", lpPath)
 	}, nil
-}
-
-func getFreePort() (int, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		return 0, err
-	}
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return 0, err
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
 func launchLightpandaServer(executablePath string) (cmd *exec.Cmd, webSocketURL string, lpStdout *bytes.Buffer, lpStderr *bytes.Buffer, err error) {
@@ -73,6 +58,6 @@ func launchLightpandaServer(executablePath string) (cmd *exec.Cmd, webSocketURL 
 	logger.Printf("Launched Lightpanda server (PID: %d) on %s:%d", cmd.Process.Pid, host, port)
 	logger.Printf("Lightpanda WebSocket debugger URL: %s", webSocketURL)
 
-	// Do not call cmd.Wait() here; the caller (main) will manage the process lifetime.
+	// Do not call cmd.Wait() here. The caller (main) manages the process lifetime.
 	return cmd, webSocketURL, lpStdout, lpStderr, nil
 }

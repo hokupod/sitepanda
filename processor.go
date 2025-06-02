@@ -11,7 +11,7 @@ import (
 	"github.com/go-shiori/go-readability"
 )
 
-// PageData holds the extracted information from a webpage.
+// PageData represents extracted information from a webpage.
 type PageData struct {
 	Title       string
 	URL         string
@@ -67,7 +67,7 @@ func processHTML(pageURL string, rawHTML string, contentSelector string) (*PageD
 				foundSelection.Remove()
 			}
 
-			modifiedHTML, err := goquery.OuterHtml(doc.Selection) // doc.Selection is the root
+			modifiedHTML, err := goquery.OuterHtml(doc.Selection)
 			if err != nil {
 				logger.Printf("Warning: failed to get HTML after pre-filtering on %s: %v. Proceeding with raw HTML for readability.", pageURL, err)
 			} else {
@@ -77,7 +77,6 @@ func processHTML(pageURL string, rawHTML string, contentSelector string) (*PageD
 				} else if len(removedElementsLog) == 0 {
 					logger.Printf("Pre-filtering attempted on %s, but no targeted elements (%s) were found or removed. Using raw HTML for readability.", pageURL, strings.Join(selectorsToRemove, ", "))
 				} else {
-					// This case (length same but elements were logged as found) should be rare.
 					logger.Printf("Pre-filtering on %s: elements (%s) were targeted, but output HTML length is unchanged. Using raw HTML for readability.", pageURL, strings.Join(removedElementsLog, ", "))
 				}
 			}
@@ -86,8 +85,7 @@ func processHTML(pageURL string, rawHTML string, contentSelector string) (*PageD
 
 	article, err := readability.FromReader(strings.NewReader(htmlToProcess), parsedURL)
 	if err != nil {
-		// If a content selector was used and readability failed, it might be because the selected snippet was too small/bad.
-		// Log this specific case.
+  // Log this case: If a content selector was used and readability fails, the snippet may be too small or unsuitable.
 		if contentSelector != "" && htmlToProcess != rawHTML {
 			logger.Printf("Warning: failed to extract readable content from selector-reduced HTML for %s: %v. The selector might be too specific or the content unsuitable for readability.", pageURL, err)
 		} else if contentSelector == "" && htmlToProcess != rawHTML {

@@ -1,13 +1,13 @@
 # Sitepanda
 
-Sitepanda is a command-line interface (CLI) tool written in Go. It is designed to scrape websites using the Lightpanda headless browser, starting from a user-provided URL. The primary goal is to extract the main readable content from web pages and save it as Markdown. This project is inspired by the functionality of [sitefetch](https://github.com/egoist/sitefetch).
+Sitepanda is a command-line interface (CLI) tool written in Go. It is designed to scrape websites using a headless browser (Lightpanda or Chromium, controlled via Playwright), starting from a user-provided URL. The primary goal is to extract the main readable content from web pages and save it as Markdown. This project is inspired by the functionality of [sitefetch](https://github.com/egoist/sitefetch).
 
 ## Features
 
 *   Scrapes websites starting from a given URL.
 *   Crawls same-domain links to discover pages.
-*   Uses Lightpanda headless browser (controlled via Playwright) for page fetching and JavaScript execution, enabling interaction with dynamic, JavaScript-rich websites.
-    *   Lightpanda is managed as an external dependency. Sitepanda provides an `init` command to download and install it.
+*   Uses a headless browser (Lightpanda or Chromium, controlled via Playwright) for page fetching and JavaScript execution, enabling interaction with dynamic, JavaScript-rich websites.
+    *   Browser dependencies (Lightpanda or Chromium) are managed by Sitepanda. The `init` command downloads and installs the chosen browser.
 *   If no specific `--content-selector` is provided, Sitepanda pre-filters the HTML by removing `<script>`, `<style>`, `<link>`, `<img>`, and `<video>` tags before attempting content extraction.
 *   Extracts the main "readable" content from each page using `go-readability`.
 *   Converts the extracted HTML content to Markdown.
@@ -19,11 +19,16 @@ Sitepanda is a command-line interface (CLI) tool written in Go. It is designed t
 ## Technical Stack
 
 *   **Programming Language:** Go
-*   **Headless Browser:** [Lightpanda](https://github.com/lightpanda-io/browser)
-    *   Lightpanda is installed and managed by Sitepanda's `init` command. It is stored in a user-specific data directory (e.g., `$XDG_DATA_HOME/sitepanda/bin/lightpanda` on Linux, `~/Library/Application Support/Sitepanda/bin/lightpanda` on macOS).
-    *   Sitepanda launches and manages Lightpanda processes.
-    *   Lightpanda is started in `serve` mode (e.g., `./lightpanda serve --host 127.0.0.1 --port <auto-assigned>`).
-*   **Browser Control (CDP Client):** [`playwright-community/playwright-go`](https://github.com/playwright-community/playwright-go)
+*   **Headless Browser:**
+    *   [Lightpanda](https://github.com/lightpanda-io/browser) (default):
+        *   Lightpanda is installed and managed by Sitepanda's `init` command. It is stored in a user-specific data directory (e.g., `$XDG_DATA_HOME/sitepanda/bin/lightpanda` on Linux, `~/Library/Application Support/Sitepanda/bin/lightpanda` on macOS).
+        *   Sitepanda launches and manages Lightpanda processes.
+        *   Lightpanda is started in `serve` mode (e.g., `./lightpanda serve --host 127.0.0.1 --port <auto-assigned>`). Sitepanda connects to it via CDP.
+    *   Chromium (via Playwright):
+        *   Installed and managed by Playwright when `sitepanda init chromium` is run. Playwright installs Chromium into a Sitepanda-managed directory (e.g., `$XDG_DATA_HOME/sitepanda/playwright_driver/` on Linux).
+        *   Sitepanda uses Playwright to launch and control Chromium.
+*   **Browser Control (CDP Client / Browser Automation):** [`playwright-community/playwright-go`](https://github.com/playwright-community/playwright-go)
+    *   Used for CDP connection to Lightpanda and for launching/controlling Chromium.
 *   **HTML Parsing (for selector, link extraction, and pre-filtering):** [`PuerkitoBio/goquery`](https://github.com/PuerkitoBio/goquery)
 *   **HTML Content Extraction:** [`go-shiori/go-readability`](https://github.com/go-shiori/go-readability)
 *   **HTML to Markdown Conversion:** [`JohannesKaufmann/html-to-markdown`](https://github.com/JohannesKaufmann/html-to-markdown) (with GitHub Flavored Markdown plugin)
@@ -40,7 +45,7 @@ sitepanda [command] [options] <url>
 
 **Commands:**
 
-*   `init`: Downloads and installs the Lightpanda browser dependency to the appropriate user-specific data directory. This must be run once before scraping.
+*   `init [lightpanda|chromium]`: Downloads and installs the specified browser dependency (default: `lightpanda`). `lightpanda` is installed to a user-specific data directory. `chromium` is installed by Playwright into a Sitepanda-managed directory. This must be run once before scraping with the chosen browser.
 *   If no command is specified, Sitepanda assumes a URL is provided and attempts to start scraping.
 
 **Arguments (for scraping):**
@@ -49,6 +54,7 @@ sitepanda [command] [options] <url>
 
 **Options (for scraping):**
 
+*   `--browser <name>, -b <name>`: Specify the browser to use for scraping (`lightpanda` or `chromium`). Default: `lightpanda` (or the value of the `SITEPANDA_BROWSER` environment variable if set).
 *   `-o, --outfile <path>`: Write the fetched site to a text file. If the path ends with `.json`, the output will be in JSON format. Otherwise, it defaults to an XML-like text format.
 *   `-m, --match <pattern>`: Only extract content from matched pages (glob pattern, can be specified multiple times). Non-matching pages on the same domain are still crawled for links until the `--limit` is reached.
 *   `--limit <number>`: Stop crawling and fetching new pages once this many pages have had their content successfully saved (0 for no limit).
@@ -56,11 +62,16 @@ sitepanda [command] [options] <url>
 *   `--silent`: Do not print any logs.
 *   `--version`: Show version information.
 
+**Environment Variables:**
+
+*   `SITEPANDA_BROWSER`: Specifies the default browser to use (`lightpanda` or `chromium`). This can be overridden by the `--browser` or `-b` command-line options.
+
 ## Crawling Logic
 
 *   A queue manages URLs to be visited.
 *   A set (or map) tracks visited URLs to prevent re-fetching and loops.
 *   Links are filtered to ensure they are on the same host as the starting URL and use HTTP/HTTPS.
+*   Connection to the browser (Lightpanda via CDP, Chromium via Playwright launch) for robust interaction with dynamic web pages.
 *   If a `--content-selector` is provided, Sitepanda attempts to extract HTML from the first matching element. This specific HTML is then passed to the readability engine.
 *   If no `--content-selector` is provided, Sitepanda performs a pre-filtering step on the full HTML: it removes all `<script>`, `<style>`, `<link>`, `<img>`, and `<video>` tags. The resulting modified HTML is then passed to the readability engine.
 *   The `--match` option determines if a page's content is extracted and saved.
@@ -104,15 +115,16 @@ Sitepanda supports two output formats:
 
 *   A simple logger outputs `INFO` and `WARN` level messages.
 *   The `--silent` flag suppresses all log output.
-*   Errors encountered during page fetching or processing are logged. Sitepanda attempts to continue processing other pages if the error is page-specific, but will halt the crawl if critical browser connection errors occur or if Lightpanda is not installed (guiding the user to run `sitepanda init`).
+*   Errors encountered during page fetching or processing are logged. Sitepanda attempts to continue processing other pages if the error is page-specific, but will halt the crawl if critical browser connection errors occur or if the required browser is not installed (guiding the user to run `sitepanda init [browser]`).
 
 ## Current Status and Known Issues
 
 **Current Functionality:**
-*   CLI with `init` command for Lightpanda setup.
-*   CLI flags for URL, outfile (supports `.json` for JSON output), limit, match, content-selector, silent, version.
-*   Dynamic download, installation, and launching/termination of Lightpanda browser via `sitepanda init` and subsequent runs.
-*   Connection to Lightpanda via Playwright for robust interaction with dynamic web pages.
+*   CLI with `init [browser]` command for Lightpanda or Chromium setup.
+*   CLI flags for URL, outfile (supports `.json` for JSON output), limit, match, content-selector, silent, version, and `browser` (with `-b` shorthand).
+*   Support for `SITEPANDA_BROWSER` environment variable to set the default browser.
+*   Dynamic download, installation, and launching/termination of browser dependencies (Lightpanda or Chromium via Playwright).
+*   Connection to Lightpanda via CDP or launch/control of Chromium via Playwright for robust interaction with dynamic web pages.
 *   Sequential crawling of same-domain URLs starting from a given URL, using a single browser page instance.
 *   URL normalization to handle minor variations.
 *   Default HTML pre-filtering (removes script, style, link, img, video tags) when `--content-selector` is not used.
@@ -125,6 +137,7 @@ Sitepanda supports two output formats:
 *   Initial unit tests for URL normalization and other components.
 
 **Known Issues:**
+*   While Lightpanda is efficient for many websites, some users have reported occasional instability with specific site structures or technologies. To enhance compatibility across a broader range of websites and offer a consistently stable alternative, Sitepanda now includes support for the Chromium browser. If you encounter a website where Lightpanda does not perform as expected, we recommend trying to scrape it using Chromium with the `--browser chromium` option.
 *   (Refer to previous list, ensure they are still relevant or update as needed).
 
 ## Installation and Setup
@@ -147,11 +160,21 @@ Sitepanda supports two output formats:
         This will install the `sitepanda` binary to your Go bin directory (e.g., `~/go/bin`). Make sure this directory is in your system's `PATH`.
 
 3.  **Initialize Sitepanda:**
-    Run the `init` command to download and set up the Lightpanda browser:
-    ```bash
-    sitepanda init
-    ```
-    This command will download the appropriate Lightpanda binary for your OS (Linux or macOS) and install it into a user-specific data directory (e.g., `~/.local/share/sitepanda/bin/` on Linux or `~/Library/Application Support/Sitepanda/bin/` on macOS). You only need to run this once, unless you want to re-download Lightpanda.
+    Run the `init` command to download and set up your chosen browser:
+
+    *   **For Lightpanda (default):**
+        ```bash
+        sitepanda init
+        # or
+        sitepanda init lightpanda
+        ```
+        This command will download the appropriate Lightpanda binary for your OS (Linux or macOS) and install it into a user-specific data directory (e.g., `~/.local/share/sitepanda/bin/` on Linux or `~/Library/Application Support/Sitepanda/bin/` on macOS). You only need to run this once for Lightpanda, unless you want to re-download it.
+
+    *   **For Chromium:**
+        ```bash
+        sitepanda init chromium
+        ```
+        This command will use Playwright to download and install Chromium. Playwright will install it into a Sitepanda-managed directory (e.g., `~/.local/share/sitepanda/playwright_driver/` on Linux, `~/Library/Application Support/Sitepanda/playwright_driver/` on macOS). This directory is used by Playwright to find its browser binaries. You only need to run this once for Chromium.
 
 ## Building from Source
 
@@ -168,9 +191,13 @@ If you prefer to build from source:
     ```
     This will create a `sitepanda` executable in the current directory.
 3.  **Initialize Sitepanda (if not done already):**
-    Even when building from source, you need to run the `init` command to get Lightpanda:
+    Even when building from source, you need to run the `init` command to get your chosen browser:
     ```bash
+    # For Lightpanda (default)
     ./sitepanda init
+
+    # For Chromium
+    ./sitepanda init chromium
     ```
 
 ## Running
@@ -178,14 +205,23 @@ If you prefer to build from source:
 After installation and initialization:
 
 ```bash
-# Output in XML-like text format to output.txt
+# Scrape using Lightpanda (default) and output in XML-like text format to output.txt
 sitepanda --outfile output.txt --match "/blog/**" https://example.com
 
-# Output in JSON format to output.json
+# Scrape using Lightpanda (default) and output in JSON format to output.json
 sitepanda --outfile output.json --match "/blog/**" https://example.com
 
-# To use a specific content selector:
-sitepanda --outfile output.json --content-selector ".main-article-body" https://example.com
+# Scrape using Chromium (short option) and output in JSON format to output.json
+sitepanda -b chromium --outfile output.json --match "/blog/**" https://example.com
+
+# Scrape using Chromium (long option) and output in JSON format to output.json
+sitepanda --browser chromium --outfile output.json --match "/blog/**" https://example.com
+
+# Scrape using Chromium with a specific content selector
+sitepanda --browser chromium --outfile output.json --content-selector ".main-article-body" https://example.com
+
+# Scrape using Chromium (specified via environment variable) and output to stdout
+SITEPANDA_BROWSER=chromium sitepanda https://example.com
 ```
 
 To run the tests:
@@ -200,12 +236,12 @@ Sitepanda is licensed under the [MIT License](LICENSE).
 ## Development TODO / Next Steps
 
 *   **Testing (Unit Tests):**
-    *   Ensure comprehensive unit tests for new path management and `init` command logic.
+    *   Ensure comprehensive unit tests for new path management and `init` command logic for both browsers.
 *   **Testing (Integration Tests):**
-    *   Develop integration tests for the end-to-end scraping process, including the `init` flow (perhaps by mocking the download or checking for the binary).
+    *   Develop integration tests for the end-to-end scraping process with both Lightpanda and Chromium, including the `init` flow.
 *   **Robustness and Error Handling:**
-    *   Further refine error handling for `sitepanda init` (network issues, disk space, permissions).
+    *   Further refine error handling for `sitepanda init [browser]` (network issues, disk space, permissions).
 *   **CLI Refinements:**
     *   Consider a more sophisticated CLI parsing library if subcommands become more complex.
 *   **Windows Support:**
-    *   Currently, Lightpanda is not available for Windows. If it becomes available, extend `sitepanda init` and path logic.
+    *   Lightpanda is not currently available for Windows. However, Chromium (via Playwright) works on Windows. `sitepanda init chromium` and scraping with `--browser chromium` should be tested and confirmed on Windows. Path logic for Playwright's driver directory on Windows needs to be ensured.
