@@ -15,7 +15,7 @@ func setupTestFlagsAndParse(t *testing.T, args []string) (calculatedDefaultBrows
 	os.Args = append([]string{currentExe}, args...)
 	defer func() { os.Args = originalOsArgs }()
 
-	expectedDefaultBrowser := "lightpanda"
+	expectedDefaultBrowser := "chromium"
 	envBrowser := os.Getenv("SITEPANDA_BROWSER")
 	if envBrowser != "" {
 		if envBrowser == "lightpanda" || envBrowser == "chromium" {
@@ -79,8 +79,8 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			name:                       "default (no env, no browser args)",
 			envVarValue:                "UNSET",
 			cliArgs:                    []string{"http://example.com"},
-			expectedDefaultBrowserVal:  "lightpanda",
-			expectedFinalBrowserName:   "lightpanda",
+			expectedDefaultBrowserVal:  "chromium",
+			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: false,
 		},
 		{
@@ -103,15 +103,15 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			name:                       "env invalid, no browser args",
 			envVarValue:                "firefox",
 			cliArgs:                    []string{"http://example.com"},
-			expectedDefaultBrowserVal:  "lightpanda",
-			expectedFinalBrowserName:   "lightpanda",
+			expectedDefaultBrowserVal:  "chromium",
+			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: false,
 		},
 		{
 			name:                       "arg -b chromium, no env",
 			envVarValue:                "UNSET",
 			cliArgs:                    []string{"-b", "chromium", "http://example.com"},
-			expectedDefaultBrowserVal:  "lightpanda",
+			expectedDefaultBrowserVal:  "chromium",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: false,
 		},
@@ -119,7 +119,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			name:                       "arg --browser chromium, no env",
 			envVarValue:                "UNSET",
 			cliArgs:                    []string{"--browser", "chromium", "http://example.com"},
-			expectedDefaultBrowserVal:  "lightpanda",
+			expectedDefaultBrowserVal:  "chromium",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: false,
 		},
@@ -143,7 +143,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			name:                       "env invalid, arg -b chromium",
 			envVarValue:                "firefox",
 			cliArgs:                    []string{"-b", "chromium", "http://example.com"},
-			expectedDefaultBrowserVal:  "lightpanda",
+			expectedDefaultBrowserVal:  "chromium",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: false,
 		},
@@ -151,23 +151,23 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			name:                       "arg -wni, no env",
 			envVarValue:                "UNSET",
 			cliArgs:                    []string{"-wni", "http://example.com"},
-			expectedDefaultBrowserVal:  "lightpanda",
-			expectedFinalBrowserName:   "lightpanda",
+			expectedDefaultBrowserVal:  "chromium",
+			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: true,
 		},
 		{
 			name:                       "arg --wait-for-network-idle, no env",
 			envVarValue:                "UNSET",
 			cliArgs:                    []string{"--wait-for-network-idle", "http://example.com"},
-			expectedDefaultBrowserVal:  "lightpanda",
-			expectedFinalBrowserName:   "lightpanda",
+			expectedDefaultBrowserVal:  "chromium",
+			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: true,
 		},
 		{
 			name:                       "arg -wni and -b chromium, no env",
 			envVarValue:                "UNSET",
 			cliArgs:                    []string{"-wni", "-b", "chromium", "http://example.com"},
-			expectedDefaultBrowserVal:  "lightpanda",
+			expectedDefaultBrowserVal:  "chromium",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: true,
 		},
@@ -183,7 +183,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			name:                       "unknown flag causes parse error",
 			envVarValue:                "UNSET",
 			cliArgs:                    []string{"--unknown-flag", "http://example.com"},
-			expectedDefaultBrowserVal:  "lightpanda",
+			expectedDefaultBrowserVal:  "chromium",
 			expectedWaitForNetworkIdle: false,
 			expectParseError:           true,
 		},

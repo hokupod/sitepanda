@@ -18,7 +18,7 @@ import (
 	"github.com/playwright-community/playwright-go"
 )
 
-const version = "0.0.4"
+const version = "0.0.5"
 const lightpandaNightlyVersion = "nightly"
 
 var (
@@ -46,13 +46,13 @@ func (s *stringSlice) Set(value string) error {
 }
 
 func main() {
-	defaultBrowser := "lightpanda"
+	defaultBrowser := "chromium"
 	envBrowser := os.Getenv("SITEPANDA_BROWSER")
 	if envBrowser != "" {
 		if envBrowser == "lightpanda" || envBrowser == "chromium" {
 			defaultBrowser = envBrowser
 		} else {
-			fmt.Fprintf(os.Stderr, "Warning: Invalid value for SITEPANDA_BROWSER environment variable: %s. Using '%s' or command-line specified browser.\n", envBrowser, defaultBrowser)
+			fmt.Fprintf(os.Stderr, "Warning: Invalid value for SITEPANDA_BROWSER environment variable: %s. Using default '%s' or command-line specified browser.\n", envBrowser, defaultBrowser)
 		}
 	}
 
@@ -76,7 +76,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  SITEPANDA_BROWSER         Specifies the default browser ('lightpanda' or 'chromium').\n")
 		fmt.Fprintf(os.Stderr, "                            Command-line options --browser or -b will override this.\n\n")
 		fmt.Fprintf(os.Stderr, "Commands:\n")
-		fmt.Fprintf(os.Stderr, "  init [lightpanda|chromium]  Download and install the specified browser dependency (default: lightpanda).\n")
+		fmt.Fprintf(os.Stderr, "  init [chromium|lightpanda]  Download and install the specified browser dependency (default: chromium).\n")
 		fmt.Fprintf(os.Stderr, "  <url>                     Start scraping from the given URL (default command if no other command is specified).\n\n")
 		fmt.Fprintf(os.Stderr, "Options for scraping (when <url> is provided):\n")
 		fmt.Fprintf(os.Stderr, "  --browser <name>, -b <name> Browser to use (lightpanda or chromium). Default: %s (or SITEPANDA_BROWSER value)\n", defaultBrowser)
@@ -113,7 +113,7 @@ func main() {
 	args := flag.Args()
 
 	if len(args) > 0 && args[0] == "init" {
-		browserToInit := "lightpanda"
+		browserToInit := "chromium"
 		if len(args) > 1 {
 			browserToInit = args[1]
 			if browserToInit != "lightpanda" && browserToInit != "chromium" {
@@ -123,7 +123,7 @@ func main() {
 			}
 		}
 		if len(args) > 2 {
-			logger.Println("Error: 'init' command takes at most one argument (browser name: 'lightpanda' or 'chromium').")
+			logger.Println("Error: 'init' command takes at most one argument (browser name: 'chromium' or 'lightpanda').")
 			flag.Usage()
 			os.Exit(1)
 		}
