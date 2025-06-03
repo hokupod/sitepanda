@@ -22,14 +22,15 @@ const version = "0.0.5"
 const lightpandaNightlyVersion = "nightly"
 
 var (
-	outfile            string
-	matchPatterns      stringSlice
-	pageLimit          int
-	contentSelector    string
-	silent             bool
-	showVersion        bool
-	waitForNetworkIdle bool
-	browserName        string
+	outfile             string
+	matchPatterns       stringSlice
+	followMatchPatterns stringSlice
+	pageLimit           int
+	contentSelector     string
+	silent              bool
+	showVersion         bool
+	waitForNetworkIdle  bool
+	browserName         string
 )
 
 var logger = log.New(os.Stdout, "", log.LstdFlags)
@@ -63,6 +64,7 @@ func main() {
 	flag.StringVar(&outfile, "o", "", "Write the fetched site to a text file (shorthand)")
 	flag.Var(&matchPatterns, "match", "Only extract content from matched pages (glob pattern, can be specified multiple times)")
 	flag.Var(&matchPatterns, "m", "Only fetch matched pages (glob pattern, can be specified multiple times, shorthand)")
+	flag.Var(&followMatchPatterns, "follow-match", "Only add links matching this glob pattern to the crawl queue (glob pattern, affects which URLs are crawled, can be specified multiple times)")
 	flag.StringVar(&contentSelector, "content-selector", "", "CSS selector to find the main content area (e.g., .article-body)")
 	flag.BoolVar(&silent, "silent", false, "Do not print any logs")
 	flag.BoolVar(&showVersion, "version", false, "Show version information")
@@ -82,6 +84,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  --browser <name>, -b <name> Browser to use (lightpanda or chromium). Default: %s (or SITEPANDA_BROWSER value)\n", defaultBrowser)
 		fmt.Fprintf(os.Stderr, "  -o, --outfile <path>          Write the fetched site to a text file. If path ends with .json, output is JSON.\n")
 		fmt.Fprintf(os.Stderr, "  -m, --match <pattern>         Only extract content from matched pages (glob pattern, can be specified multiple times).\n")
+		fmt.Fprintf(os.Stderr, "  --follow-match <pattern>      Only add links matching this glob pattern to the crawl queue (can be specified multiple times).\n")
 		fmt.Fprintf(os.Stderr, "  --limit <number>              Stop crawling once this many pages have had their content saved (0 for no limit).\n")
 		fmt.Fprintf(os.Stderr, "  --content-selector <selector> Specify a CSS selector to target the main content area.\n")
 		fmt.Fprintf(os.Stderr, "  --wait-for-network-idle, -wni Wait for network to be idle instead of just load when fetching pages.\n")
@@ -93,7 +96,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %s init chromium\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  SITEPANDA_BROWSER=chromium %s --outfile output.json https://example.com\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s --browser chromium --outfile output.json https://example.com\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s -b chromium --outfile output.json https://example.com\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -b chromium --outfile output.json --follow-match \"/blog/**\" https://example.com\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s --wait-for-network-idle --outfile output.json https://example.com\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -wni --outfile output.json https://example.com\n", os.Args[0])
 	}
@@ -219,7 +222,8 @@ func main() {
 		logger.Printf("  Chromium managed by Playwright in: %s", playwrightDriverDir)
 	}
 	logger.Printf("  Outfile: %s", outfile)
-	logger.Printf("  Match Patterns: %v", matchPatterns)
+	logger.Printf("  Match Patterns (for content saving): %v", matchPatterns)
+	logger.Printf("  Follow Match Patterns (for crawling): %v", followMatchPatterns)
 	logger.Printf("  Page Limit: %d", pageLimit)
 	logger.Printf("  Content Selector: %s", contentSelector)
 	logger.Printf("  Silent: %t", silent)
@@ -229,9 +233,9 @@ func main() {
 	var crawlerErr error
 
 	if browserName == "lightpanda" {
-		crawler, crawlerErr = NewCrawlerForLightpanda(startURL, wsURL, pwInstance, pageLimit, matchPatterns, contentSelector, outfile, silent, waitForNetworkIdle)
+		crawler, crawlerErr = NewCrawlerForLightpanda(startURL, wsURL, pwInstance, pageLimit, matchPatterns, followMatchPatterns, contentSelector, outfile, silent, waitForNetworkIdle)
 	} else if browserName == "chromium" {
-		crawler, crawlerErr = NewCrawlerForPlaywrightBrowser(startURL, pwBrowser, pageLimit, matchPatterns, contentSelector, outfile, silent, waitForNetworkIdle)
+		crawler, crawlerErr = NewCrawlerForPlaywrightBrowser(startURL, pwBrowser, pageLimit, matchPatterns, followMatchPatterns, contentSelector, outfile, silent, waitForNetworkIdle)
 	} else {
 		logger.Fatalf("Unsupported browser for crawler creation: %s", browserName)
 	}

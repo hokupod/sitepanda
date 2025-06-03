@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"net/url"
 	"os"
@@ -11,16 +12,26 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// Suppress logger output for all tests in this package
 	originalLoggerOutput := logger.Writer()
 	logger.SetOutput(io.Discard)
-
 	exitCode := m.Run()
-
-	// Restore logger output (optional, but good practice if tests run in a shared environment)
 	logger.SetOutput(originalLoggerOutput)
-
 	os.Exit(exitCode)
+}
+
+func compileTestGlobPatterns(rawPatterns []string) []glob.Glob {
+	if rawPatterns == nil {
+		return nil
+	}
+	var compiled []glob.Glob
+	for _, p := range rawPatterns {
+		g, err := glob.Compile(p, '/')
+		if err != nil {
+			panic(fmt.Sprintf("Failed to compile test glob pattern '%s': %v", p, err))
+		}
+		compiled = append(compiled, g)
+	}
+	return compiled
 }
 
 func TestNormalizeURLtoString(t *testing.T) {
@@ -57,7 +68,7 @@ func TestNormalizeURLtoString(t *testing.T) {
 		{
 			name:    "with path and trailing slash",
 			input:   "http://example.com/path/to/page/",
-			want:    "http://example.com/path/to/page", // Corrected: normalizeURLtoString removes trailing slash from path unless it's the root
+			want:    "http://example.com/path/to/page",
 			wantErr: false,
 		},
 		{
@@ -99,7 +110,7 @@ func TestNormalizeURLtoString(t *testing.T) {
 		{
 			name:    "invalid URL scheme",
 			input:   "ftp://example.com/file",
-			want:    "ftp://example.com/file", // Normalization still occurs, scheme is not validated by this func
+			want:    "ftp://example.com/file",
 			wantErr: false,
 		},
 		{
@@ -116,13 +127,13 @@ func TestNormalizeURLtoString(t *testing.T) {
 		},
 		{
 			name:    "just a fragment",
-			input:   "#fragment", // url.Parse will result in an empty URL struct for this
+			input:   "#fragment",
 			want:    "",
-			wantErr: true, // because parsed.Scheme will be empty, and path is also empty
+			wantErr: true,
 		},
 		{
 			name:    "relative path",
-			input:   "/just/a/path", // No scheme, so path "/" rule doesn't apply
+			input:   "/just/a/path",
 			want:    "/just/a/path",
 			wantErr: false,
 		},
@@ -197,9 +208,6 @@ func TestFormatResultsAsJSON(t *testing.T) {
 			input: []PageData{
 				{Title: "Special \"Chars\" Page", URL: "http://example.com/special", Markdown: "Content with <>&'\""},
 			},
-			// Note: json.MarshalIndent handles HTML escaping by default for <, >, & within strings.
-			// The Go string literal itself correctly represents the desired characters.
-			// The \u003c is <, \u003e is >, \u0026 is &.
 			wantJSON: `[
   {
     "title": "Special \"Chars\" Page",
@@ -439,18 +447,6 @@ func TestShouldProcessContent(t *testing.T) {
 				t.Fatalf("url.Parse(%q) failed: %v", tt.pageURLStr, err)
 			}
 
-			if tt.expectErr {
-				// This check is problematic if the error is expected from glob.Compile
-				// The test structure assumes errors from glob.Compile are handled before this point.
-				// If an error is expected from url.Parse, it's handled by the check above.
-				// This specific `t.Fatalf` might need to be re-evaluated based on what tt.expectErr signifies.
-				// For now, if tt.expectErr is true, we assume the error was caught earlier (e.g., by glob.Compile or url.Parse).
-				// If it didn't exit, and tt.expectErr is true, it's a test logic flaw.
-				// Let's assume if tt.expectErr is true, the test should have already returned.
-				// If it reaches here, tt.expectErr must be false.
-			}
-
-
 			result := c.shouldProcessContent(pageURL)
 			if result != tt.expectedResult {
 				t.Errorf("shouldProcessContent() for URL %s with patterns %v = %v, want %v", tt.pageURLStr, tt.matchPatterns, result, tt.expectedResult)
@@ -481,11 +477,12 @@ func TestExtractAndFilterLinks(t *testing.T) {
 	}
 
 	tests := []struct {
-		name       string
-		pageURLStr string
-		htmlBody   string
-		wantLinks  []string
-		wantErr    bool
+		name              string
+		pageURLStr        string
+		htmlBody          string
+		followPatternsRaw []string
+		wantLinks         []string
+		wantErr           bool
 	}{
 		{
 			name:       "no links",
@@ -554,7 +551,7 @@ func TestExtractAndFilterLinks(t *testing.T) {
 			name:       "link with fragment",
 			pageURLStr: "http://example.com/",
 			htmlBody:   `<html><body><a href="/page#section">Page with fragment</a></body></html>`,
-			wantLinks:  []string{"http://example.com/page"}, // Fragment should be removed by normalizeURLtoString
+			wantLinks:  []string{"http://example.com/page"},
 		},
 		{
 			name:       "link to root, page is root",
@@ -584,16 +581,13 @@ func TestExtractAndFilterLinks(t *testing.T) {
 			name:       "invalid href (just fragment)",
 			pageURLStr: "http://example.com/",
 			htmlBody:   `<html><body><a href="#section-only">Section</a></body></html>`,
-			// normalizeURLtoString for "#section-only" relative to "http://example.com/" becomes "http://example.com/"
-			// because the fragment is removed, and the base path is "/".
-			wantLinks: []string{"http://example.com/"},
+			wantLinks:  []string{"http://example.com/"},
 		},
 		{
 			name:       "empty href",
 			pageURLStr: "http://example.com/",
 			htmlBody:   `<html><body><a href="">Empty Href</a></body></html>`,
-			// normalizeURLtoString for "" relative to "http://example.com/" becomes "http://example.com/"
-			wantLinks: []string{"http://example.com/"},
+			wantLinks:  []string{"http://example.com/"},
 		},
 		{
 			name:       "link with spaces (should be handled by url.Parse)",
@@ -619,24 +613,78 @@ func TestExtractAndFilterLinks(t *testing.T) {
 				"https://sub.example.com/docs/v1/intro.html",
 				"https://sub.example.com/api/v1/method",
 				"https://sub.example.com/docs/v1/examples/ex1.html",
-				// "https://anothersub.example.com/page" is considered external by current Hostname() check
 			},
 		},
 		{
 			name:       "page URL with no trailing slash, relative link",
 			pageURLStr: "http://example.com/folder",
 			htmlBody:   `<html><body><a href="item">Item</a></body></html>`,
-			// url.Parse resolves "item" relative to "http://example.com/" if "folder" is not seen as a directory.
-			// If "folder" is seen as a file, it resolves to "http://example.com/item".
-			// The standard library's `pageURL.Parse("item")` when pageURL.Path is "/folder" (not "/folder/")
-			// will resolve to "/item".
-			wantLinks: []string{"http://example.com/item"},
+			wantLinks:  []string{"http://example.com/item"},
 		},
 		{
 			name:       "page URL with trailing slash, relative link",
 			pageURLStr: "http://example.com/folder/",
 			htmlBody:   `<html><body><a href="item">Item</a></body></html>`,
 			wantLinks:  []string{"http://example.com/folder/item"},
+		},
+		{
+			name:              "with follow-match, one matching link",
+			pageURLStr:        "http://example.com/",
+			htmlBody:          `<html><body><a href="/allowed/page1">Allowed</a> <a href="/denied/page2">Denied</a></body></html>`,
+			followPatternsRaw: []string{"/allowed/*"},
+			wantLinks:         []string{"http://example.com/allowed/page1"},
+		},
+		{
+			name:              "with follow-match, no matching links",
+			pageURLStr:        "http://example.com/",
+			htmlBody:          `<html><body><a href="/other/page1">Other</a></body></html>`,
+			followPatternsRaw: []string{"/allowed/*"},
+			wantLinks:         []string{},
+		},
+		{
+			name:       "with follow-match, multiple patterns, some matching",
+			pageURLStr: "http://example.com/",
+			htmlBody: `<html><body>
+                <a href="/blog/post1">Blog Post 1</a>
+                <a href="/docs/guide/topic">Docs Guide</a>
+                <a href="/news/update">News Update</a>
+            </body></html>`,
+			followPatternsRaw: []string{"/blog/*", "/docs/**"},
+			wantLinks: []string{
+				"http://example.com/blog/post1",
+				"http://example.com/docs/guide/topic",
+			},
+		},
+		{
+			name:              "no follow-match (nil), should behave as before",
+			pageURLStr:        "http://example.com/",
+			htmlBody:          `<html><body><a href="/page1">Page 1</a> <a href="http://external.com">External</a></body></html>`,
+			followPatternsRaw: nil,
+			wantLinks:         []string{"http://example.com/page1"},
+		},
+		{
+			name:              "no follow-match (empty slice), should behave as before",
+			pageURLStr:        "http://example.com/",
+			htmlBody:          `<html><body><a href="/page1">Page 1</a> <a href="/page2">Page 2</a></body></html>`,
+			followPatternsRaw: []string{},
+			wantLinks:         []string{"http://example.com/page1", "http://example.com/page2"},
+		},
+		{
+			name:              "follow-match with root path /",
+			pageURLStr:        "http://example.com/",
+			htmlBody:          `<html><body><a href="/">Home</a> <a href="/about">About</a></body></html>`,
+			followPatternsRaw: []string{"/"},
+			wantLinks:         []string{"http://example.com/"},
+		},
+		{
+			name:       "follow-match with path containing special glob chars (literal match)",
+			pageURLStr: "http://example.com/",
+			htmlBody: `<html><body>
+                <a href="/path/to/[id]">Item ID</a>
+                <a href="/path/to/other">Other</a>
+            </body></html>`,
+			followPatternsRaw: []string{"/path/to/\\[id\\]"}, // Test if glob correctly escapes or handles literals
+			wantLinks:         []string{"http://example.com/path/to/[id]"},
 		},
 	}
 
@@ -654,7 +702,8 @@ func TestExtractAndFilterLinks(t *testing.T) {
 			}
 
 			c := &Crawler{
-				startURL: pageURL, // So that link filtering uses the correct host
+				startURL:            pageURL,
+				followMatchPatterns: compileTestGlobPatterns(tt.followPatternsRaw),
 			}
 
 			gotLinks := c.extractAndFilterLinks(pageURL, tt.htmlBody)
@@ -663,7 +712,7 @@ func TestExtractAndFilterLinks(t *testing.T) {
 			wantMap := sliceToMap(tt.wantLinks)
 
 			if !mapsEqual(gotMap, wantMap) {
-				t.Errorf("extractAndFilterLinks() got = %v, want %v", gotLinks, tt.wantLinks)
+				t.Errorf("extractAndFilterLinks() got = %v, want %v (patterns: %v)", gotLinks, tt.wantLinks, tt.followPatternsRaw)
 			}
 		})
 	}

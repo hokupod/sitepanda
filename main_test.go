@@ -4,10 +4,11 @@ import (
 	"flag"
 	"io"
 	"os"
+	"reflect"
 	"testing"
 )
 
-func setupTestFlagsAndParse(t *testing.T, args []string) (calculatedDefaultBrowser string, finalBrowserName string, finalWaitForNetworkIdle bool, parseErr error) {
+func setupTestFlagsAndParse(t *testing.T, args []string) (calculatedDefaultBrowser string, finalBrowserName string, finalWaitForNetworkIdle bool, finalFollowMatchPatterns stringSlice, parseErr error) {
 	t.Helper()
 
 	originalOsArgs := os.Args
@@ -33,27 +34,30 @@ func setupTestFlagsAndParse(t *testing.T, args []string) (calculatedDefaultBrows
 
 	var dummyInt int
 	var dummyString string
-	var dummyStringSlice stringSlice
+	var dummyMatchPatterns stringSlice
 	var dummyBool bool
 	var capturedWaitForNetworkIdle bool
 	testFlagSet.IntVar(&dummyInt, "limit", 0, "dummy limit")
 	testFlagSet.StringVar(&dummyString, "outfile", "", "dummy outfile")
 	testFlagSet.StringVar(&dummyString, "o", "", "dummy o")
-	testFlagSet.Var(&dummyStringSlice, "match", "dummy match")
-	testFlagSet.Var(&dummyStringSlice, "m", "dummy m")
+	testFlagSet.Var(&dummyMatchPatterns, "match", "dummy match")
+	testFlagSet.Var(&dummyMatchPatterns, "m", "dummy m")
 	testFlagSet.StringVar(&dummyString, "content-selector", "", "dummy selector")
 	testFlagSet.BoolVar(&dummyBool, "silent", false, "dummy silent")
 	testFlagSet.BoolVar(&dummyBool, "version", false, "dummy version")
 	testFlagSet.BoolVar(&capturedWaitForNetworkIdle, "wait-for-network-idle", false, "dummy wni long")
 	testFlagSet.BoolVar(&capturedWaitForNetworkIdle, "wni", false, "dummy wni short")
 
+	var capturedFollowMatchPatterns stringSlice
+	testFlagSet.Var(&capturedFollowMatchPatterns, "follow-match", "dummy follow-match")
+
 	parseErr = testFlagSet.Parse(os.Args[1:])
 	if parseErr != nil {
-		return calculatedDefaultBrowser, "", false, parseErr
+		return calculatedDefaultBrowser, "", false, nil, parseErr
 	}
 	finalBrowserName = capturedBrowserName
 	finalWaitForNetworkIdle = capturedWaitForNetworkIdle
-	return calculatedDefaultBrowser, finalBrowserName, finalWaitForNetworkIdle, nil
+	return calculatedDefaultBrowser, finalBrowserName, finalWaitForNetworkIdle, capturedFollowMatchPatterns, nil
 }
 
 func TestBrowserSelectionLogic(t *testing.T) {
@@ -73,6 +77,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 		expectedDefaultBrowserVal  string
 		expectedFinalBrowserName   string
 		expectedWaitForNetworkIdle bool
+		expectedFollowMatchPatterns stringSlice
 		expectParseError           bool
 	}{
 		{
@@ -82,6 +87,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			expectedDefaultBrowserVal:  "chromium",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: false,
+			expectedFollowMatchPatterns: nil,
 		},
 		{
 			name:                       "env lightpanda, no browser args",
@@ -90,6 +96,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			expectedDefaultBrowserVal:  "lightpanda",
 			expectedFinalBrowserName:   "lightpanda",
 			expectedWaitForNetworkIdle: false,
+			expectedFollowMatchPatterns: nil,
 		},
 		{
 			name:                       "env chromium, no browser args",
@@ -98,6 +105,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			expectedDefaultBrowserVal:  "chromium",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: false,
+			expectedFollowMatchPatterns: nil,
 		},
 		{
 			name:                       "env invalid, no browser args",
@@ -106,6 +114,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			expectedDefaultBrowserVal:  "chromium",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: false,
+			expectedFollowMatchPatterns: nil,
 		},
 		{
 			name:                       "arg -b chromium, no env",
@@ -114,6 +123,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			expectedDefaultBrowserVal:  "chromium",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: false,
+			expectedFollowMatchPatterns: nil,
 		},
 		{
 			name:                       "arg --browser chromium, no env",
@@ -122,6 +132,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			expectedDefaultBrowserVal:  "chromium",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: false,
+			expectedFollowMatchPatterns: nil,
 		},
 		{
 			name:                       "env lightpanda, arg -b chromium",
@@ -130,6 +141,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			expectedDefaultBrowserVal:  "lightpanda",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: false,
+			expectedFollowMatchPatterns: nil,
 		},
 		{
 			name:                       "env chromium, arg --browser lightpanda",
@@ -138,6 +150,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			expectedDefaultBrowserVal:  "chromium",
 			expectedFinalBrowserName:   "lightpanda",
 			expectedWaitForNetworkIdle: false,
+			expectedFollowMatchPatterns: nil,
 		},
 		{
 			name:                       "env invalid, arg -b chromium",
@@ -146,6 +159,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			expectedDefaultBrowserVal:  "chromium",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: false,
+			expectedFollowMatchPatterns: nil,
 		},
 		{
 			name:                       "arg -wni, no env",
@@ -154,6 +168,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			expectedDefaultBrowserVal:  "chromium",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: true,
+			expectedFollowMatchPatterns: nil,
 		},
 		{
 			name:                       "arg --wait-for-network-idle, no env",
@@ -162,6 +177,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			expectedDefaultBrowserVal:  "chromium",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: true,
+			expectedFollowMatchPatterns: nil,
 		},
 		{
 			name:                       "arg -wni and -b chromium, no env",
@@ -170,6 +186,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			expectedDefaultBrowserVal:  "chromium",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: true,
+			expectedFollowMatchPatterns: nil,
 		},
 		{
 			name:                       "arg --wait-for-network-idle and --browser chromium, env lightpanda",
@@ -178,6 +195,7 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			expectedDefaultBrowserVal:  "lightpanda",
 			expectedFinalBrowserName:   "chromium",
 			expectedWaitForNetworkIdle: true,
+			expectedFollowMatchPatterns: nil,
 		},
 		{
 			name:                       "unknown flag causes parse error",
@@ -185,7 +203,35 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			cliArgs:                    []string{"--unknown-flag", "http://example.com"},
 			expectedDefaultBrowserVal:  "chromium",
 			expectedWaitForNetworkIdle: false,
+			expectedFollowMatchPatterns: nil,
 			expectParseError:           true,
+		},
+		{
+			name:                       "single follow-match",
+			envVarValue:                "UNSET",
+			cliArgs:                    []string{"--follow-match", "/blog/**", "http://example.com"},
+			expectedDefaultBrowserVal:  "chromium",
+			expectedFinalBrowserName:   "chromium",
+			expectedWaitForNetworkIdle: false,
+			expectedFollowMatchPatterns: stringSlice{"/blog/**"},
+		},
+		{
+			name:                       "multiple follow-match",
+			envVarValue:                "UNSET",
+			cliArgs:                    []string{"--follow-match", "/blog/**", "--follow-match", "/docs/*", "http://example.com"},
+			expectedDefaultBrowserVal:  "chromium",
+			expectedFinalBrowserName:   "chromium",
+			expectedWaitForNetworkIdle: false,
+			expectedFollowMatchPatterns: stringSlice{"/blog/**", "/docs/*"},
+		},
+		{
+			name:                       "follow-match with other flags",
+			envVarValue:                "lightpanda",
+			cliArgs:                    []string{"-b", "chromium", "-wni", "--follow-match", "/user/profile", "http://example.com"},
+			expectedDefaultBrowserVal:  "lightpanda",
+			expectedFinalBrowserName:   "chromium",
+			expectedWaitForNetworkIdle: true,
+			expectedFollowMatchPatterns: stringSlice{"/user/profile"},
 		},
 	}
 
@@ -197,11 +243,11 @@ func TestBrowserSelectionLogic(t *testing.T) {
 				os.Setenv("SITEPANDA_BROWSER", tt.envVarValue)
 			}
 
-			calculatedDefault, finalBrowser, finalWNI, err := setupTestFlagsAndParse(t, tt.cliArgs)
+			calculatedDefault, finalBrowser, finalWNI, finalFollowMatch, err := setupTestFlagsAndParse(t, tt.cliArgs)
 
 			if tt.expectParseError {
 				if err == nil {
-					t.Errorf("expected a parse error, but got nil. Final browser: %s, final WNI: %t", finalBrowser, finalWNI)
+					t.Errorf("expected a parse error, but got nil. Final browser: %s, final WNI: %t, finalFollowMatch: %v", finalBrowser, finalWNI, finalFollowMatch)
 				}
 				return
 			}
@@ -222,6 +268,11 @@ func TestBrowserSelectionLogic(t *testing.T) {
 			if finalWNI != tt.expectedWaitForNetworkIdle {
 				t.Errorf("Final waitForNetworkIdle mismatch: got %t, want %t (env: %q, args: %v)",
 					finalWNI, tt.expectedWaitForNetworkIdle, tt.envVarValue, tt.cliArgs)
+			}
+
+			if !reflect.DeepEqual(finalFollowMatch, tt.expectedFollowMatchPatterns) {
+				t.Errorf("Final followMatchPatterns mismatch: got %v, want %v (env: %q, args: %v)",
+					finalFollowMatch, tt.expectedFollowMatchPatterns, tt.envVarValue, tt.cliArgs)
 			}
 		})
 	}
