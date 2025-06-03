@@ -30,6 +30,9 @@ type Crawler struct {
 	silent              bool
 	waitForNetworkIdle  bool
 
+	isURLListMode       bool
+	initialURLs         []string
+
 	visited map[string]bool
 	results []PageData
 	rootCtx context.Context
@@ -79,6 +82,8 @@ func parseCrawlerArgs(startURLStr string, matchPatternsRaw stringSlice, followMa
 
 func newCrawlerCommon(
 	parsedStartURL *url.URL,
+	urlListToProcess []string,
+	isListMode bool,
 	pwB playwright.Browser,
 	pageLimit int,
 	compiledMatchPatterns []glob.Glob,
@@ -130,7 +135,7 @@ func newCrawlerCommon(
 
 	logger.Printf("Attempting initial navigation to about:blank with Playwright page...")
 	_, err = p.Goto("about:blank", playwright.PageGotoOptions{
-		Timeout: playwright.Float(15000),
+		Timeout: playwright.Float(15000), // 15 seconds timeout for about:blank
 	})
 	if err != nil {
 		_ = p.Close()
@@ -149,7 +154,7 @@ func newCrawlerCommon(
 	}
 	logger.Printf("Playwright page is responsive (about:blank title: '%s')", initialTitle)
 
-	normStartURLStr := parsedStartURL.String()
+	visitedMap := make(map[string]bool)
 
 	crawler := &Crawler{
 		startURL:            parsedStartURL,
@@ -157,10 +162,12 @@ func newCrawlerCommon(
 		matchPatterns:       compiledMatchPatterns,
 		followMatchPatterns: compiledFollowMatchPatterns,
 		contentSelector:     contentSelector,
+		isURLListMode:       isListMode,
+		initialURLs:         urlListToProcess,
 		outfile:             outfile,
 		silent:              silent,
 		waitForNetworkIdle:  waitForNetworkIdle,
-		visited:             map[string]bool{normStartURLStr: true},
+		visited:             visitedMap,
 		results:             make([]PageData, 0),
 		rootCtx:             rootContext,
 		cancel:              rootCancelFunc,
@@ -174,6 +181,8 @@ func newCrawlerCommon(
 
 func NewCrawlerForLightpanda(
 	startURLStr string,
+	urlList []string,
+	isListMode bool,
 	wsURL string,
 	pwInstance *playwright.Playwright,
 	pageLimit int,
@@ -193,7 +202,7 @@ func NewCrawlerForLightpanda(
 
 	logger.Printf("Attempting to connect Playwright to Lightpanda browser at %s", wsURL)
 	browser, err := pwInstance.Chromium.ConnectOverCDP(wsURL, playwright.BrowserTypeConnectOverCDPOptions{
-		Timeout: playwright.Float(30000),
+		Timeout: playwright.Float(30000), // 30 seconds timeout for connection
 	})
 	if err != nil {
 		rootCrawlerCancel()
@@ -201,11 +210,13 @@ func NewCrawlerForLightpanda(
 	}
 	logger.Printf("Playwright successfully connected to Lightpanda at %s", wsURL)
 
-	return newCrawlerCommon(parsedStartURL, browser, pageLimit, compiledMatchPatterns, compiledFollowPatterns, contentSelector, outfile, silent, waitForNetworkIdle, rootCtxForCrawler, rootCrawlerCancel)
+	return newCrawlerCommon(parsedStartURL, urlList, isListMode, browser, pageLimit, compiledMatchPatterns, compiledFollowPatterns, contentSelector, outfile, silent, waitForNetworkIdle, rootCtxForCrawler, rootCrawlerCancel)
 }
 
 func NewCrawlerForPlaywrightBrowser(
 	startURLStr string,
+	urlList []string,
+	isListMode bool,
 	pwB playwright.Browser,
 	pageLimit int,
 	matchPatternsRaw stringSlice,
@@ -220,7 +231,7 @@ func NewCrawlerForPlaywrightBrowser(
 		return nil, err
 	}
 	rootCtxForCrawler, rootCrawlerCancel := context.WithCancel(context.Background())
-	return newCrawlerCommon(parsedStartURL, pwB, pageLimit, compiledMatchPatterns, compiledFollowPatterns, contentSelector, outfile, silent, waitForNetworkIdle, rootCtxForCrawler, rootCrawlerCancel)
+	return newCrawlerCommon(parsedStartURL, urlList, isListMode, pwB, pageLimit, compiledMatchPatterns, compiledFollowPatterns, contentSelector, outfile, silent, waitForNetworkIdle, rootCtxForCrawler, rootCrawlerCancel)
 }
 
 func (c *Crawler) Crawl() error {
@@ -239,10 +250,40 @@ func (c *Crawler) Crawl() error {
 		}
 	}()
 
-	normStartURLForQueue, _ := normalizeURLtoString(c.startURL.String())
-	queue := []string{normStartURLForQueue}
+	queue := []string{}
 
-	logger.Printf("Starting crawl with URL: %s", c.startURL.String())
+	if c.isURLListMode {
+		logger.Printf("URL List Mode: Initializing queue with %d URLs from the provided list.", len(c.initialURLs))
+		uniqueURLsForQueue := make(map[string]struct{})
+		for _, urlStr := range c.initialURLs {
+			normalizedURL, err := normalizeURLtoString(urlStr)
+			if err != nil {
+				logger.Printf("Warning: Skipping invalid URL from list '%s': %v", urlStr, err)
+				continue
+			}
+			if _, exists := uniqueURLsForQueue[normalizedURL]; !exists {
+				queue = append(queue, normalizedURL)
+				uniqueURLsForQueue[normalizedURL] = struct{}{}
+				c.visited[normalizedURL] = true
+			}
+		}
+		logger.Printf("URL List Mode: Effective initial queue size after normalization and deduplication: %d", len(queue))
+	} else {
+		normStartURLForQueue, err := normalizeURLtoString(c.startURL.String())
+		if err != nil {
+			return fmt.Errorf("failed to normalize the initial start URL %s: %w", c.startURL.String(), err)
+		}
+		queue = append(queue, normStartURLForQueue)
+		c.visited[normStartURLForQueue] = true
+		logger.Printf("Single URL Mode: Initializing queue with start URL: %s", normStartURLForQueue)
+	}
+
+	if len(queue) == 0 {
+		logger.Println("Initial crawl queue is empty. Nothing to process.")
+		return nil
+	}
+
+	logger.Printf("Starting crawl. Initial queue size: %d. Start URL for context: %s", len(queue), c.startURL.String())
 
 	for len(queue) > 0 {
 		if c.rootCtx.Err() != nil {
@@ -272,7 +313,7 @@ func (c *Crawler) Crawl() error {
 
 		for attempt := 0; attempt <= maxRetries; attempt++ {
 			if c.rootCtx.Err() != nil {
-				logger.Printf("Root context canceled before fetching %s, attempt %d. Stopping fetch for this URL.", currentURLStr, attempt)
+				logger.Printf("Root context canceled before fetching %s, attempt %d. Stopping fetch for this URL.", currentURLStr, attempt+1)
 				fetchErr = c.rootCtx.Err()
 				break
 			}
@@ -281,8 +322,10 @@ func (c *Crawler) Crawl() error {
 				break
 			}
 			logger.Printf("Error fetching page %s (attempt %d/%d): %v", currentURLStr, attempt+1, maxRetries+1, fetchErr)
+
 			isTimeout := errors.Is(fetchErr, context.DeadlineExceeded)
 			isPlaywrightError := strings.Contains(fetchErr.Error(), "Playwright")
+
 			if (isTimeout || isPlaywrightError) && attempt < maxRetries {
 				logger.Printf("Retrying fetch for %s...", currentURLStr)
 				continue
@@ -323,17 +366,19 @@ func (c *Crawler) Crawl() error {
 			}
 		}
 
-		if currentURL.Hostname() == c.startURL.Hostname() {
-			links := c.extractAndFilterLinks(currentURL, htmlContent)
-			for _, normalizedLinkStr := range links {
-				if _, visited := c.visited[normalizedLinkStr]; !visited {
-					if c.rootCtx.Err() != nil {
-						logger.Printf("Root context canceled. Not adding more links to queue.")
-						break
+		if !c.isURLListMode {
+			if currentURL.Hostname() == c.startURL.Hostname() {
+				links := c.extractAndFilterLinks(currentURL, htmlContent)
+				for _, normalizedLinkStr := range links {
+					if _, visited := c.visited[normalizedLinkStr]; !visited {
+						if c.rootCtx.Err() != nil {
+							logger.Printf("Root context canceled. Not adding more links to queue.")
+							break
+						}
+						c.visited[normalizedLinkStr] = true
+						queue = append(queue, normalizedLinkStr)
+						logger.Printf("Added to queue: %s", normalizedLinkStr)
 					}
-					c.visited[normalizedLinkStr] = true
-					queue = append(queue, normalizedLinkStr)
-					logger.Printf("Added to queue: %s", normalizedLinkStr)
 				}
 			}
 		}
@@ -384,6 +429,8 @@ func (c *Crawler) shouldProcessContent(pageURL *url.URL) bool {
 	pathToMatch := pageURL.Path
 	if pathToMatch == "" {
 		pathToMatch = "/"
+	} else if !strings.HasPrefix(pathToMatch, "/") {
+		pathToMatch = "/" + pathToMatch
 	}
 
 	for _, g := range c.matchPatterns {
@@ -391,7 +438,7 @@ func (c *Crawler) shouldProcessContent(pageURL *url.URL) bool {
 			return true
 		}
 	}
-	logger.Printf("Path '%s' (from URL %s) did not match any --match patterns. Skipping content processing, but will still crawl for links if on same domain and matching --follow-match.", pathToMatch, pageURL.String())
+	logger.Printf("Path '%s' (from URL %s) did not match any --match patterns. Skipping content processing.", pathToMatch, pageURL.String())
 	return false
 }
 
@@ -434,6 +481,8 @@ func (c *Crawler) extractAndFilterLinks(pageURL *url.URL, htmlBody string) []str
 			pathToMatch := resolvedParsedURL.Path
 			if pathToMatch == "" {
 				pathToMatch = "/"
+			} else if !strings.HasPrefix(pathToMatch, "/") {
+				pathToMatch = "/" + pathToMatch
 			}
 			for _, g := range c.followMatchPatterns {
 				if g.Match(pathToMatch) {
@@ -442,7 +491,6 @@ func (c *Crawler) extractAndFilterLinks(pageURL *url.URL, htmlBody string) []str
 				}
 			}
 			if !shouldFollow {
-				logger.Printf("Crawler: Link %s (path: %s) skipped, does not match --follow-match patterns.", normLinkStr, pathToMatch)
 				return
 			}
 		}
@@ -470,16 +518,26 @@ func normalizeURLtoString(urlString string) (string, error) {
 	if parsed.Scheme == "" && parsed.Host == "" && parsed.Path == "" && parsed.RawQuery == "" && parsed.Fragment != "" {
 		return "", fmt.Errorf("input URL '%s' is effectively only a fragment, cannot normalize", trimmedURLString)
 	}
+	if parsed.Scheme == "" && parsed.Host != "" {
+		if !strings.Contains(parsed.Host, ":") && (strings.HasPrefix(trimmedURLString, "//") || !strings.ContainsAny(trimmedURLString, "/?#")) {
+			parsedFromStringWithScheme := "http://" + trimmedURLString
+			parsedWithScheme, errParseWithScheme := url.Parse(parsedFromStringWithScheme)
+			if errParseWithScheme == nil {
+				parsed = parsedWithScheme
+			}
+		}
+	}
 	if parsed.Scheme == "" && parsed.Host == "" {
 	}
 
 	parsed.Fragment = ""
 
+	if parsed.Host != "" && parsed.Path == "" {
+		parsed.Path = "/"
+	}
+
 	if len(parsed.Path) > 1 && strings.HasSuffix(parsed.Path, "/") {
 		parsed.Path = parsed.Path[:len(parsed.Path)-1]
-	}
-	if parsed.Path == "" && parsed.Host != "" {
-		parsed.Path = "/"
 	}
 
 	return parsed.String(), nil
