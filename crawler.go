@@ -21,13 +21,14 @@ type JSONOutputPage struct {
 }
 
 type Crawler struct {
-	startURL           *url.URL
-	pageLimit          int
-	matchPatterns      []glob.Glob
-	contentSelector    string
-	outfile            string
-	silent             bool
-	waitForNetworkIdle bool
+	startURL            *url.URL
+	pageLimit           int
+	matchPatterns       []glob.Glob
+	followMatchPatterns []glob.Glob
+	contentSelector     string
+	outfile             string
+	silent              bool
+	waitForNetworkIdle  bool
 
 	visited map[string]bool
 	results []PageData
@@ -39,37 +40,49 @@ type Crawler struct {
 	page      playwright.Page
 }
 
-func parseCrawlerArgs(startURLStr string, matchPatternsRaw stringSlice) (*url.URL, []glob.Glob, error) {
+func parseCrawlerArgs(startURLStr string, matchPatternsRaw stringSlice, followMatchPatternsRaw stringSlice) (*url.URL, []glob.Glob, []glob.Glob, error) {
 	normStartURL, err := normalizeURLtoString(startURLStr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid start URL '%s': %w", startURLStr, err)
+		return nil, nil, nil, fmt.Errorf("invalid start URL '%s': %w", startURLStr, err)
 	}
 	parsedStartURL, err := url.Parse(normStartURL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to re-parse normalized start URL '%s': %w", normStartURL, err)
+		return nil, nil, nil, fmt.Errorf("failed to re-parse normalized start URL '%s': %w", normStartURL, err)
 	}
 	if parsedStartURL.Scheme != "http" && parsedStartURL.Scheme != "https" {
-		return nil, nil, fmt.Errorf("start URL must use http or https scheme, got: %s", parsedStartURL.Scheme)
+		return nil, nil, nil, fmt.Errorf("start URL must use http or https scheme, got: %s", parsedStartURL.Scheme)
 	}
 
-	var compiledPatterns []glob.Glob
+	var compiledMatchPatterns []glob.Glob
 	if len(matchPatternsRaw) > 0 {
 		for _, p := range matchPatternsRaw {
 			g, compileErr := glob.Compile(p, '/')
 			if compileErr != nil {
-				return nil, nil, fmt.Errorf("invalid match pattern '%s': %w", p, compileErr)
+				return nil, nil, nil, fmt.Errorf("invalid match pattern '%s': %w", p, compileErr)
 			}
-			compiledPatterns = append(compiledPatterns, g)
+			compiledMatchPatterns = append(compiledMatchPatterns, g)
 		}
 	}
-	return parsedStartURL, compiledPatterns, nil
+
+	var compiledFollowMatchPatterns []glob.Glob
+	if len(followMatchPatternsRaw) > 0 {
+		for _, p := range followMatchPatternsRaw {
+			g, compileErr := glob.Compile(p, '/')
+			if compileErr != nil {
+				return nil, nil, nil, fmt.Errorf("invalid follow-match pattern '%s': %w", p, compileErr)
+			}
+			compiledFollowMatchPatterns = append(compiledFollowMatchPatterns, g)
+		}
+	}
+	return parsedStartURL, compiledMatchPatterns, compiledFollowMatchPatterns, nil
 }
 
 func newCrawlerCommon(
 	parsedStartURL *url.URL,
 	pwB playwright.Browser,
 	pageLimit int,
-	compiledPatterns []glob.Glob,
+	compiledMatchPatterns []glob.Glob,
+	compiledFollowMatchPatterns []glob.Glob,
 	contentSelector string,
 	outfile string,
 	silent bool,
@@ -139,20 +152,21 @@ func newCrawlerCommon(
 	normStartURLStr := parsedStartURL.String()
 
 	crawler := &Crawler{
-		startURL:           parsedStartURL,
-		pageLimit:          pageLimit,
-		matchPatterns:      compiledPatterns,
-		contentSelector:    contentSelector,
-		outfile:            outfile,
-		silent:             silent,
-		waitForNetworkIdle: waitForNetworkIdle,
-		visited:            map[string]bool{normStartURLStr: true},
-		results:            make([]PageData, 0),
-		rootCtx:            rootContext,
-		cancel:             rootCancelFunc,
-		pwBrowser:          pwB,
-		pwContext:          browserCtx,
-		page:               p,
+		startURL:            parsedStartURL,
+		pageLimit:           pageLimit,
+		matchPatterns:       compiledMatchPatterns,
+		followMatchPatterns: compiledFollowMatchPatterns,
+		contentSelector:     contentSelector,
+		outfile:             outfile,
+		silent:              silent,
+		waitForNetworkIdle:  waitForNetworkIdle,
+		visited:             map[string]bool{normStartURLStr: true},
+		results:             make([]PageData, 0),
+		rootCtx:             rootContext,
+		cancel:              rootCancelFunc,
+		pwBrowser:           pwB,
+		pwContext:           browserCtx,
+		page:                p,
 	}
 
 	return crawler, nil
@@ -164,12 +178,13 @@ func NewCrawlerForLightpanda(
 	pwInstance *playwright.Playwright,
 	pageLimit int,
 	matchPatternsRaw stringSlice,
+	followMatchPatternsRaw stringSlice,
 	contentSelector string,
 	outfile string,
 	silent bool,
 	waitForNetworkIdle bool,
 ) (*Crawler, error) {
-	parsedStartURL, compiledPatterns, err := parseCrawlerArgs(startURLStr, matchPatternsRaw)
+	parsedStartURL, compiledMatchPatterns, compiledFollowPatterns, err := parseCrawlerArgs(startURLStr, matchPatternsRaw, followMatchPatternsRaw)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +201,7 @@ func NewCrawlerForLightpanda(
 	}
 	logger.Printf("Playwright successfully connected to Lightpanda at %s", wsURL)
 
-	return newCrawlerCommon(parsedStartURL, browser, pageLimit, compiledPatterns, contentSelector, outfile, silent, waitForNetworkIdle, rootCtxForCrawler, rootCrawlerCancel)
+	return newCrawlerCommon(parsedStartURL, browser, pageLimit, compiledMatchPatterns, compiledFollowPatterns, contentSelector, outfile, silent, waitForNetworkIdle, rootCtxForCrawler, rootCrawlerCancel)
 }
 
 func NewCrawlerForPlaywrightBrowser(
@@ -194,17 +209,18 @@ func NewCrawlerForPlaywrightBrowser(
 	pwB playwright.Browser,
 	pageLimit int,
 	matchPatternsRaw stringSlice,
+	followMatchPatternsRaw stringSlice,
 	contentSelector string,
 	outfile string,
 	silent bool,
 	waitForNetworkIdle bool,
 ) (*Crawler, error) {
-	parsedStartURL, compiledPatterns, err := parseCrawlerArgs(startURLStr, matchPatternsRaw)
+	parsedStartURL, compiledMatchPatterns, compiledFollowPatterns, err := parseCrawlerArgs(startURLStr, matchPatternsRaw, followMatchPatternsRaw)
 	if err != nil {
 		return nil, err
 	}
 	rootCtxForCrawler, rootCrawlerCancel := context.WithCancel(context.Background())
-	return newCrawlerCommon(parsedStartURL, pwB, pageLimit, compiledPatterns, contentSelector, outfile, silent, waitForNetworkIdle, rootCtxForCrawler, rootCrawlerCancel)
+	return newCrawlerCommon(parsedStartURL, pwB, pageLimit, compiledMatchPatterns, compiledFollowPatterns, contentSelector, outfile, silent, waitForNetworkIdle, rootCtxForCrawler, rootCrawlerCancel)
 }
 
 func (c *Crawler) Crawl() error {
@@ -375,7 +391,7 @@ func (c *Crawler) shouldProcessContent(pageURL *url.URL) bool {
 			return true
 		}
 	}
-	logger.Printf("Path '%s' (from URL %s) did not match any patterns. Skipping content processing, but will still crawl for links if on same domain.", pathToMatch, pageURL.String())
+	logger.Printf("Path '%s' (from URL %s) did not match any --match patterns. Skipping content processing, but will still crawl for links if on same domain and matching --follow-match.", pathToMatch, pageURL.String())
 	return false
 }
 
@@ -411,6 +427,24 @@ func (c *Crawler) extractAndFilterLinks(pageURL *url.URL, htmlBody string) []str
 		}
 		if resolvedParsedURL.Hostname() != c.startURL.Hostname() {
 			return
+		}
+
+		if len(c.followMatchPatterns) > 0 {
+			shouldFollow := false
+			pathToMatch := resolvedParsedURL.Path
+			if pathToMatch == "" {
+				pathToMatch = "/"
+			}
+			for _, g := range c.followMatchPatterns {
+				if g.Match(pathToMatch) {
+					shouldFollow = true
+					break
+				}
+			}
+			if !shouldFollow {
+				logger.Printf("Crawler: Link %s (path: %s) skipped, does not match --follow-match patterns.", normLinkStr, pathToMatch)
+				return
+			}
 		}
 
 		if _, found := uniqueLinks[normLinkStr]; found {
