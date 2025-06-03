@@ -18,11 +18,12 @@ import (
 	"github.com/playwright-community/playwright-go"
 )
 
-const version = "0.0.5"
+const version = "0.0.7"
 const lightpandaNightlyVersion = "nightly"
 
 var (
 	outfile             string
+	urlFile             string
 	matchPatterns       stringSlice
 	followMatchPatterns stringSlice
 	pageLimit           int
@@ -60,6 +61,7 @@ func main() {
 	flag.StringVar(&browserName, "browser", defaultBrowser, "Browser to use for scraping ('lightpanda' or 'chromium')")
 	flag.StringVar(&browserName, "b", defaultBrowser, "Browser to use for scraping ('lightpanda' or 'chromium') (shorthand for --browser)")
 	flag.IntVar(&pageLimit, "limit", 0, "Limit the result to this amount of pages (0 for no limit)")
+	flag.StringVar(&urlFile, "url-file", "", "Path to a file containing a list of URLs to process (one URL per line). Overrides the <url> argument.")
 	flag.StringVar(&outfile, "outfile", "", "Write the fetched site to a text file")
 	flag.StringVar(&outfile, "o", "", "Write the fetched site to a text file (shorthand)")
 	flag.Var(&matchPatterns, "match", "Only extract content from matched pages (glob pattern, can be specified multiple times)")
@@ -72,19 +74,20 @@ func main() {
 	flag.BoolVar(&waitForNetworkIdle, "wni", false, "Shorthand for --wait-for-network-idle")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [command] [options] <url>\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s [command] [options] <url_or_url_file_option>\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Sitepanda is a CLI tool to scrape websites and save content as Markdown.\n\n")
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
 		fmt.Fprintf(os.Stderr, "  SITEPANDA_BROWSER         Specifies the default browser ('lightpanda' or 'chromium').\n")
 		fmt.Fprintf(os.Stderr, "                            Command-line options --browser or -b will override this.\n\n")
 		fmt.Fprintf(os.Stderr, "Commands:\n")
 		fmt.Fprintf(os.Stderr, "  init [chromium|lightpanda]  Download and install the specified browser dependency (default: chromium).\n")
-		fmt.Fprintf(os.Stderr, "  <url>                     Start scraping from the given URL (default command if no other command is specified).\n\n")
-		fmt.Fprintf(os.Stderr, "Options for scraping (when <url> is provided):\n")
+		fmt.Fprintf(os.Stderr, "  <url>                     Start scraping from the given URL (default command if no other command is specified and --url-file is not used).\n\n")
+		fmt.Fprintf(os.Stderr, "Options for scraping (when <url> is provided or --url-file is used):\n")
 		fmt.Fprintf(os.Stderr, "  --browser <name>, -b <name> Browser to use (lightpanda or chromium). Default: %s (or SITEPANDA_BROWSER value)\n", defaultBrowser)
+		fmt.Fprintf(os.Stderr, "  --url-file <path>             Path to a file containing URLs to process (one per line). Overrides <url> argument.\n")
 		fmt.Fprintf(os.Stderr, "  -o, --outfile <path>          Write the fetched site to a text file. If path ends with .json, output is JSON.\n")
 		fmt.Fprintf(os.Stderr, "  -m, --match <pattern>         Only extract content from matched pages (glob pattern, can be specified multiple times).\n")
-		fmt.Fprintf(os.Stderr, "  --follow-match <pattern>      Only add links matching this glob pattern to the crawl queue (can be specified multiple times).\n")
+		fmt.Fprintf(os.Stderr, "  --follow-match <pattern>      Only add links matching this glob pattern to the crawl queue (can be specified multiple times). This is ignored if --url-file is used.\n")
 		fmt.Fprintf(os.Stderr, "  --limit <number>              Stop crawling once this many pages have had their content saved (0 for no limit).\n")
 		fmt.Fprintf(os.Stderr, "  --content-selector <selector> Specify a CSS selector to target the main content area.\n")
 		fmt.Fprintf(os.Stderr, "  --wait-for-network-idle, -wni Wait for network to be idle instead of just load when fetching pages.\n")
@@ -95,6 +98,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %s init\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s init chromium\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  SITEPANDA_BROWSER=chromium %s --outfile output.json https://example.com\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s --url-file urls.txt --outfile output.json\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s --browser chromium --outfile output.json https://example.com\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -b chromium --outfile output.json --follow-match \"/blog/**\" https://example.com\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s --wait-for-network-idle --outfile output.json https://example.com\n", os.Args[0])
@@ -139,17 +143,46 @@ func main() {
 		return
 	}
 
-	if len(args) < 1 {
-		logger.Println("Error: URL argument is required for scraping, or specify 'init' command.")
-		flag.Usage()
-		os.Exit(1)
+	var startURLForCrawler string
+	var targetURLsForCrawler []string
+	isURLListMode := false
+
+	if urlFile != "" {
+		if len(args) > 0 {
+			logger.Fatal("Error: Cannot use <url> argument when --url-file is specified.")
+		}
+		fileContent, err := os.ReadFile(urlFile)
+		if err != nil {
+			logger.Fatalf("Error: Failed to read --url-file %s: %v", urlFile, err)
+		}
+		lines := strings.Split(string(fileContent), "\n")
+		for _, line := range lines {
+			trimmedLine := strings.TrimSpace(line)
+			if trimmedLine != "" {
+				targetURLsForCrawler = append(targetURLsForCrawler, trimmedLine)
+			}
+		}
+		if len(targetURLsForCrawler) == 0 {
+			logger.Fatalf("Error: --url-file %s is empty or contains no valid URLs.", urlFile)
+		}
+		startURLForCrawler = targetURLsForCrawler[0]
+		isURLListMode = true
+	} else {
+		if len(args) < 1 {
+			logger.Println("Error: URL argument or --url-file option is required for scraping, or specify 'init' command.")
+			flag.Usage()
+			os.Exit(1)
+		}
+		startURLForCrawler = args[0]
+		if startURLForCrawler == "init" {
+			logger.Println("Error: 'init' is a command, not a URL. To initialize, run 'sitepanda init [browser]'.")
+			flag.Usage()
+			os.Exit(1)
+		}
+		targetURLsForCrawler = []string{startURLForCrawler}
+		isURLListMode = false
 	}
-	startURL := args[0]
-	if startURL == "init" {
-		logger.Println("Error: 'init' is a command, not a URL. To initialize, run 'sitepanda init [browser]'.")
-		flag.Usage()
-		os.Exit(1)
-	}
+
 	if browserName != "lightpanda" && browserName != "chromium" {
 		logger.Printf("Error: Invalid browser specified: %s. Supported: 'lightpanda', 'chromium'. Check command-line options or SITEPANDA_BROWSER environment variable.", browserName)
 		flag.Usage()
@@ -213,7 +246,12 @@ func main() {
 	}()
 
 	logger.Printf("Configuration:")
-	logger.Printf("  URL: %s", startURL)
+	logger.Printf("  Start URL (or first from list): %s", startURLForCrawler)
+	if isURLListMode {
+		logger.Printf("  Mode: URL List from file (%s), %d URLs", urlFile, len(targetURLsForCrawler))
+	} else {
+		logger.Printf("  Mode: Single URL Crawl")
+	}
 	logger.Printf("  Browser: %s", browserName)
 	if browserName == "lightpanda" {
 		logger.Printf("  Lightpanda Path: %s", browserExecutablePath)
@@ -223,7 +261,11 @@ func main() {
 	}
 	logger.Printf("  Outfile: %s", outfile)
 	logger.Printf("  Match Patterns (for content saving): %v", matchPatterns)
-	logger.Printf("  Follow Match Patterns (for crawling): %v", followMatchPatterns)
+	if isURLListMode {
+		logger.Printf("  Follow Match Patterns (for crawling): %v (ignored in URL list mode)", followMatchPatterns)
+	} else {
+		logger.Printf("  Follow Match Patterns (for crawling): %v", followMatchPatterns)
+	}
 	logger.Printf("  Page Limit: %d", pageLimit)
 	logger.Printf("  Content Selector: %s", contentSelector)
 	logger.Printf("  Silent: %t", silent)
@@ -233,9 +275,9 @@ func main() {
 	var crawlerErr error
 
 	if browserName == "lightpanda" {
-		crawler, crawlerErr = NewCrawlerForLightpanda(startURL, wsURL, pwInstance, pageLimit, matchPatterns, followMatchPatterns, contentSelector, outfile, silent, waitForNetworkIdle)
+		crawler, crawlerErr = NewCrawlerForLightpanda(startURLForCrawler, targetURLsForCrawler, isURLListMode, wsURL, pwInstance, pageLimit, matchPatterns, followMatchPatterns, contentSelector, outfile, silent, waitForNetworkIdle)
 	} else if browserName == "chromium" {
-		crawler, crawlerErr = NewCrawlerForPlaywrightBrowser(startURL, pwBrowser, pageLimit, matchPatterns, followMatchPatterns, contentSelector, outfile, silent, waitForNetworkIdle)
+		crawler, crawlerErr = NewCrawlerForPlaywrightBrowser(startURLForCrawler, targetURLsForCrawler, isURLListMode, pwBrowser, pageLimit, matchPatterns, followMatchPatterns, contentSelector, outfile, silent, waitForNetworkIdle)
 	} else {
 		logger.Fatalf("Unsupported browser for crawler creation: %s", browserName)
 	}
