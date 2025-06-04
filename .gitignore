@@ -3,3 +3,4 @@ sitepanda
 output*
 # Added by goreleaser init:
 dist/
+completions/
