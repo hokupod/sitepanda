@@ -43,7 +43,7 @@ type Crawler struct {
 	page      playwright.Page
 }
 
-func parseCrawlerArgs(startURLStr string, matchPatternsRaw stringSlice, followMatchPatternsRaw stringSlice) (*url.URL, []glob.Glob, []glob.Glob, error) {
+func parseCrawlerArgs(startURLStr string, matchPatternsRaw []string, followMatchPatternsRaw []string) (*url.URL, []glob.Glob, []glob.Glob, error) {
 	normStartURL, err := normalizeURLtoString(startURLStr)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("invalid start URL '%s': %w", startURLStr, err)
@@ -186,8 +186,8 @@ func NewCrawlerForLightpanda(
 	wsURL string,
 	pwInstance *playwright.Playwright,
 	pageLimit int,
-	matchPatternsRaw stringSlice,
-	followMatchPatternsRaw stringSlice,
+	matchPatternsRaw []string,
+	followMatchPatternsRaw []string,
 	contentSelector string,
 	outfile string,
 	silent bool,
@@ -219,8 +219,8 @@ func NewCrawlerForPlaywrightBrowser(
 	isListMode bool,
 	pwB playwright.Browser,
 	pageLimit int,
-	matchPatternsRaw stringSlice,
-	followMatchPatternsRaw stringSlice,
+	matchPatternsRaw []string,
+	followMatchPatternsRaw []string,
 	contentSelector string,
 	outfile string,
 	silent bool,

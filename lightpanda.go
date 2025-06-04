@@ -8,7 +8,7 @@ import (
 )
 
 func prepareLightpanda() (executablePath string, cleanupFunc func(), err error) {
-	lpPath, err := getBrowserExecutablePath("lightpanda")
+	lpPath, err := GetBrowserExecutablePath("lightpanda")
 	if err != nil {
 		return "", func() {}, fmt.Errorf("could not determine Lightpanda executable path: %w", err)
 	}

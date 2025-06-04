@@ -38,29 +38,46 @@ Sitepanda is a command-line interface (CLI) tool written in Go. It is designed t
 *   **HTML Parsing (for selector, link extraction, and pre-filtering):** [`PuerkitoBio/goquery`](https://github.com/PuerkitoBio/goquery)
 *   **HTML Content Extraction:** [`go-shiori/go-readability`](https://github.com/go-shiori/go-readability)
 *   **HTML to Markdown Conversion:** [`JohannesKaufmann/html-to-markdown`](https://github.com/JohannesKaufmann/html-to-markdown) (with GitHub Flavored Markdown plugin)
+*   **CLI Framework:** [`spf13/cobra`](https://github.com/spf13/cobra) for modern command-line interface with subcommands and auto-generated help.
 *   **JSON Handling:** Standard Go `encoding/json` package.
-*   **Testing:** Standard Go `testing` package.
+*   **Testing:** Standard Go `testing` package with comprehensive unit and integration tests.
 
 ## Command-Line Interface
 
-Sitepanda provides the following CLI structure:
+Sitepanda uses a modern CLI structure powered by [Cobra](https://github.com/spf13/cobra) with clear subcommands:
 
 ```bash
-sitepanda [command] [options] <url_or_url_file_option>
+sitepanda [command] [flags]
 ```
 
-**Commands:**
+### Commands
 
-*   `init [chromium|lightpanda]`: Downloads and installs the specified browser dependency (default: `chromium`). `chromium` is installed by Playwright into a Sitepanda-managed directory. `lightpanda` is installed to a user-specific data directory. This must be run once before scraping with the chosen browser.
-*   If no command is specified, Sitepanda assumes a URL is provided (or `--url-file` is used) and attempts to start scraping.
+#### `init` - Browser Setup
+Downloads and installs browser dependencies:
 
-**Arguments (for scraping):**
+```bash
+sitepanda init [browser]        # Install browser (default: chromium)
+sitepanda init chromium        # Install Chromium via Playwright
+sitepanda init lightpanda      # Install Lightpanda binary
+```
 
-*   `url`: The starting URL to fetch. This is ignored if `--url-file` is specified.
+#### `scrape` - Website Scraping
+Scrapes websites and extracts content:
 
-**Options (for scraping):** 
+```bash
+sitepanda scrape [url] [flags]
+```
+
+### Global Flags
+
+These flags work with all commands:
 
 *   `--browser <name>, -b <name>`: Specify the browser to use for scraping (`chromium` or `lightpanda`). Default: `chromium` (or the value of the `SITEPANDA_BROWSER` environment variable if set).
+*   `--silent`: Do not print any logs.
+*   `--version`: Show version information.
+
+### Scrape Command Flags
+
 *   `--url-file <path>`: Path to a file containing a list of URLs to process (one URL per line). If specified, Sitepanda will process each URL from this file individually. This option overrides the `<url>` argument. When `--url-file` is used, the `--follow-match` option is ignored as crawling beyond the provided URLs is not applicable.
 *   `-o, --outfile <path>`: Write the fetched site to a text file. If the path ends with `.json`, the output will be in JSON format. Otherwise, it defaults to an XML-like text format.
 *   `-m, --match <pattern>`: Only extract content from matched pages (glob pattern, can be specified multiple times). Non-matching pages on the same domain are still crawled for links until the `--limit` is reached (this crawling behavior does not apply when `--url-file` is used).
@@ -68,10 +85,8 @@ sitepanda [command] [options] <url_or_url_file_option>
 *   `--limit <number>`: Stop processing/fetching new pages once this many pages have had their content successfully saved (0 for no limit).
 *   `--content-selector <selector>`: Specify a CSS selector (e.g., `.article-body`) to identify the main content area of a page. If provided, `go-readability` will process only the content of the first matching element; the default HTML pre-filtering (of script, img, etc.) is skipped in this case. If the selector is provided but does not match any elements on the page, Sitepanda will fall back to processing the original, full HTML content without applying the default pre-filtering.
 *   `--wait-for-network-idle, -wni`: Wait for network to be idle instead of just `load` (default) when fetching pages. This can be useful for pages that load content dynamically after the initial `load` event.
-*   `--silent`: Do not print any logs.
-*   `--version`: Show version information.
 
-**Environment Variables:**
+### Environment Variables
 
 *   `SITEPANDA_BROWSER`: Specifies the default browser to use (`chromium` or `lightpanda`). This can be overridden by the `--browser` or `-b` command-line options.
 
@@ -215,64 +230,147 @@ If you prefer to build from source:
     ./sitepanda init lightpanda
     ```
 
-## Running
+## Usage Examples
 
 After installation and initialization:
 
+### Basic Scraping
+
 ```bash
-# Scrape using Chromium (default) and output in XML-like text format to output.txt
-sitepanda --outfile output.txt --match "/blog/**" https://example.com
+# Initialize browser (first time only)
+sitepanda init
 
-# Scrape using Chromium (default) and output in JSON format to output.json
-sitepanda --outfile output.json --match "/blog/**" https://example.com
+# Scrape a single URL with Chromium (default)
+sitepanda scrape https://example.com
 
-# Scrape multiple URLs from a file named urls.txt and output to output.json
-sitepanda --url-file urls.txt --outfile output.json
+# Scrape with output to file (XML-like format)
+sitepanda scrape --outfile output.txt https://example.com
 
-# Scrape using Lightpanda (short option) and output in JSON format to output.json
-sitepanda -b lightpanda --outfile output.json --match "/blog/**" https://example.com
-
-# Scrape using Lightpanda (long option) and output in JSON format to output.json
-sitepanda --browser lightpanda --outfile output.json --match "/blog/**" https://example.com
-
-# Scrape using Chromium with a specific content selector
-sitepanda --browser chromium --outfile output.json --content-selector ".main-article-body" https://example.com
-
-# Scrape using Chromium (specified via environment variable) and output to stdout
-SITEPANDA_BROWSER=chromium sitepanda https://example.com
-
-# Scrape using Chromium (default), wait for network idle (long option), and output to JSON
-sitepanda --wait-for-network-idle --outfile output.json https://example.com
-
-# Scrape using Chromium (default), wait for network idle (shorthand option), and output to JSON
-sitepanda -wni --outfile output.json https://example.com
-
-# Scrape a specific user's profile on a social media site, avoiding links to other profiles, and save to JSON
-sitepanda --outfile user_posts.json --follow-match "/username/posts/**" --follow-match "/username/details" https://example.com/username
+# Scrape with JSON output
+sitepanda scrape --outfile output.json https://example.com
 ```
 
-To run the tests:
+### Advanced Scraping Options
+
 ```bash
+# Scrape with content filtering by URL patterns
+sitepanda scrape --match "/blog/**" --outfile output.json https://example.com
+
+# Scrape multiple URLs from a file
+sitepanda scrape --url-file urls.txt --outfile output.json
+
+# Control crawling scope with follow-match patterns
+sitepanda scrape --follow-match "/docs/**" --follow-match "/api/**" \
+  --outfile docs.json https://example.com
+
+# Use specific content selector for precise extraction
+sitepanda scrape --content-selector ".main-article-body" \
+  --outfile output.json https://example.com
+
+# Wait for network idle for dynamic content
+sitepanda scrape --wait-for-network-idle --outfile output.json https://example.com
+# or use the short form:
+sitepanda scrape -wni --outfile output.json https://example.com
+```
+
+### Browser Selection
+
+```bash
+# Use Lightpanda browser
+sitepanda init lightpanda
+sitepanda scrape --browser lightpanda --outfile output.json https://example.com
+
+# Use environment variable for browser selection
+SITEPANDA_BROWSER=lightpanda sitepanda scrape https://example.com
+
+# Global browser flag (works with all commands)
+sitepanda --browser chromium scrape --outfile output.json https://example.com
+```
+
+### Help and Information
+
+```bash
+# Show general help
+sitepanda --help
+
+# Show help for specific commands
+sitepanda init --help
+sitepanda scrape --help
+
+# Show version
+sitepanda --version
+```
+
+## Testing
+
+Sitepanda includes comprehensive tests for reliability:
+
+```bash
+# Run all tests
 go test ./...
+
+# Run tests with coverage
+go test ./... -cover
+
+# Run tests in verbose mode
+go test ./... -v
+
+# Run specific test packages
+go test ./cmd -v                    # Test CLI commands
+go test . -run TestProcessHTML      # Test specific functions
 ```
+
+### Test Structure
+
+- **Unit Tests**: Core functionality (path management, content processing, URL handling)
+- **Command Tests**: CLI command validation and flag parsing
+- **Integration Tests**: End-to-end command execution
+- **Handler Tests**: Browser initialization and scraping logic
 
 ## License
 
 Sitepanda is licensed under the [MIT License](LICENSE).
 
-## Development TODO / Next Steps
+## Development Status
 
-*   **Testing (Unit Tests):**
-    *   Ensure comprehensive unit tests for new path management and `init` command logic for both browsers.
-    *   Add unit tests for the `--wait-for-network-idle` / `-wni` flag logic.
-    *   Add unit tests for `--url-file` functionality.
-*   **Testing (Integration Tests):**
-    *   Develop integration tests for the end-to-end scraping process with both Lightpanda and Chromium, including the `init` flow.
-    *   Include test cases for different page load waiting strategies.
-    *   Include test cases for `--url-file` functionality.
-*   **Robustness and Error Handling:**
-    *   Further refine error handling for `sitepanda init [browser]` (network issues, disk space, permissions).
-*   **CLI Refinements:**
-    *   Consider a more sophisticated CLI parsing library if subcommands become more complex.
-*   **Windows Support:**
-    *   Lightpanda is not currently available for Windows. However, Chromium (via Playwright) works on Windows. `sitepanda init chromium` and scraping with `--browser chromium` should be tested and confirmed on Windows. Path logic for Playwright's driver directory on Windows needs to be ensured.
+### v0.1.0 - Major Release 🎉
+
+This release represents a significant architectural improvement with breaking changes for better CLI experience.
+
+#### ✨ New Features
+*   **Modern CLI with Cobra**: Complete refactor to use `spf13/cobra` for professional command structure
+*   **Subcommand Architecture**: Clear separation between `init` and `scrape` commands with proper flag organization
+*   **Auto-Generated Help**: Rich help system with examples and shell completion support
+*   **Enhanced Testing**: Full test suite including unit tests, integration tests, and command validation
+
+#### 🔄 Breaking Changes
+*   **Command Structure**: Changed from `sitepanda [flags] <url>` to `sitepanda scrape [flags] <url>`
+*   **Browser Initialization**: Now requires explicit `sitepanda init [browser]` command
+*   **Help System**: New structured help with `--help` for each subcommand
+
+#### 📖 Migration Guide
+```bash
+# Old (v0.0.x)
+sitepanda --outfile output.json https://example.com
+
+# New (v0.1.0)
+sitepanda init                    # One-time setup
+sitepanda scrape --outfile output.json https://example.com
+```
+
+### Current Status (v0.1.0)
+
+*   🚀 **Stable CLI**: Production-ready `init [browser]` and `scrape [url]` subcommands
+*   🌐 **Dual Browser Support**: Full support for both Chromium (default) and Lightpanda browsers
+*   ⚡ **Automated Setup**: Dynamic browser installation and management
+*   🛡️ **Robust Validation**: Comprehensive flag support with proper validation and error handling
+*   📚 **Auto-Generated Help**: Built-in help system and shell completion support via Cobra
+*   🔧 **Flexible Configuration**: Environment variable configuration with CLI override capability
+*   ✅ **High Quality**: Comprehensive test coverage across all major functionality
+
+### Future Improvements
+
+*   **Enhanced Error Handling**: More detailed error messages for network and installation issues
+*   **Performance Optimization**: Parallel processing for multiple URLs
+*   **Windows Support**: Full testing and validation on Windows platforms
+*   **Plugin System**: Extensible architecture for custom content processors

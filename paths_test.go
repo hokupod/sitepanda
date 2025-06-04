@@ -63,7 +63,7 @@ func TestGetAppSubdirectory(t *testing.T) {
 			expectedBase:   "Library/Application Support/Sitepanda/cache",
 		},
 		{
-			name:        "Unsupported OS (windows) for getAppSubdirectory",
+			name:        "Unsupported OS (windows) for GetAppSubdirectory",
 			goos:        "windows",
 			expectError: true,
 		},
@@ -114,15 +114,15 @@ func TestGetAppSubdirectory(t *testing.T) {
 				}
 			}
 
-			path, err := getAppSubdirectory(tt.subPath...)
+			path, err := GetAppSubdirectory(tt.subPath...)
 
 			if (err != nil) != tt.expectError {
-				t.Fatalf("getAppSubdirectory() error = %v, wantErr %v. Path: %s. OS: %s, test case OS: %s", err, tt.expectError, path, runtime.GOOS, tt.goos)
+				t.Fatalf("GetAppSubdirectory() error = %v, wantErr %v. Path: %s. OS: %s, test case OS: %s", err, tt.expectError, path, runtime.GOOS, tt.goos)
 			}
 
 			if !tt.expectError {
 				if path == "" {
-					t.Errorf("getAppSubdirectory() returned empty path")
+					t.Errorf("GetAppSubdirectory() returned empty path")
 				}
 
 				var expectedPath string
@@ -133,11 +133,11 @@ func TestGetAppSubdirectory(t *testing.T) {
 				}
 
 				if path != expectedPath {
-					t.Errorf("getAppSubdirectory() path = %q, want %q", path, expectedPath)
+					t.Errorf("GetAppSubdirectory() path = %q, want %q", path, expectedPath)
 				}
 
 				if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
-					t.Errorf("getAppSubdirectory() did not create directory: %s", path)
+					t.Errorf("GetAppSubdirectory() did not create directory: %s", path)
 				}
 			} else {
 				// For Windows, check for the specific unsupported OS error message.
@@ -151,7 +151,7 @@ func TestGetAppSubdirectory(t *testing.T) {
 	}
 }
 
-// Tests getBrowserExecutablePath for various browsers and OSes.
+// Tests GetBrowserExecutablePath for various browsers and OSes.
 func TestGetBrowserExecutablePath(t *testing.T) {
 	fakeHome := t.TempDir()
 	cleanupHomeMock := mockUserHomeDir(t, fakeHome)
@@ -188,7 +188,7 @@ func TestGetBrowserExecutablePath(t *testing.T) {
 			name:            "Chromium path hint on Linux - expects error",
 			browserName:     "chromium",
 			baseInstallDirs: []string{filepath.Join(fakeHome, "playwright_driver_test_linux")},
-			expectError:     true, // As getBrowserExecutablePath for chromium returns an error indicating unreliability
+			expectError:     true, // As GetBrowserExecutablePath for chromium returns an error indicating unreliability
 			errorContains:   "path hint for Chromium",
 			targetOS:        "linux",
 		},
@@ -232,18 +232,18 @@ func TestGetBrowserExecutablePath(t *testing.T) {
 				}
 			}
 
-			path, err := getBrowserExecutablePath(tt.browserName, tt.baseInstallDirs...)
+			path, err := GetBrowserExecutablePath(tt.browserName, tt.baseInstallDirs...)
 
 			if tt.expectError {
 				if err == nil {
-					t.Fatalf("getBrowserExecutablePath() expected error for %s, but got nil. Path: %s", tt.name, path)
+					t.Fatalf("GetBrowserExecutablePath() expected error for %s, but got nil. Path: %s", tt.name, path)
 				}
 				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("getBrowserExecutablePath() error = %q, want error containing %q", err.Error(), tt.errorContains)
+					t.Errorf("GetBrowserExecutablePath() error = %q, want error containing %q", err.Error(), tt.errorContains)
 				}
 			} else { // Not expecting error
 				if err != nil {
-					t.Fatalf("getBrowserExecutablePath() for %s error = %v, want nil. Path: %s", tt.name, err, path)
+					t.Fatalf("GetBrowserExecutablePath() for %s error = %v, want nil. Path: %s", tt.name, err, path)
 				}
 
 				var expectedFullPath string
@@ -257,13 +257,13 @@ func TestGetBrowserExecutablePath(t *testing.T) {
 
 
 				if path != expectedFullPath {
-					t.Errorf("getBrowserExecutablePath() = %q, want %q", path, expectedFullPath)
+					t.Errorf("GetBrowserExecutablePath() = %q, want %q", path, expectedFullPath)
 				}
 
 				// For Lightpanda, check if the parent directory was created by getAppSubdirectory.
 				if tt.browserName == "lightpanda" {
 					if _, statErr := os.Stat(filepath.Dir(path)); os.IsNotExist(statErr) {
-						t.Errorf("getBrowserExecutablePath() did not create directory for Lightpanda: %s", filepath.Dir(path))
+						t.Errorf("GetBrowserExecutablePath() did not create directory for Lightpanda: %s", filepath.Dir(path))
 					}
 				}
 			}

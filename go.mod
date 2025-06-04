@@ -18,6 +18,9 @@ require (
 	github.com/go-shiori/dom v0.0.0-20230515143342-73569d674e1c // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/gogs/chardet v0.0.0-20211120154057-b7413eaefb8f // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/spf13/cobra v1.9.1 // indirect
+	github.com/spf13/pflag v1.0.6 // indirect
 	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
