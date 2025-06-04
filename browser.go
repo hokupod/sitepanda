@@ -19,7 +19,7 @@ func prepareBrowser(browserName string, baseInstallDirForChromium string) (execu
 
 	switch browserName {
 	case "lightpanda":
-		execPathAttempt, err = getBrowserExecutablePath(browserName)
+		execPathAttempt, err = GetBrowserExecutablePath(browserName)
 		if err != nil {
 			return "", func() {}, fmt.Errorf("could not determine %s executable path: %w", browserName, err)
 		}
@@ -41,13 +41,13 @@ func prepareBrowser(browserName string, baseInstallDirForChromium string) (execu
 
 	case "chromium":
 		// For Chromium, Playwright manages the executable. Assume `playwright.Install` has worked.
-		// `getBrowserExecutablePath` for Chromium may return a hint or error if path detection is complex.
+		// `GetBrowserExecutablePath` for Chromium may return a hint or error if path detection is complex.
 		// If Playwright's `Launch` can find the executable, a strict path is not required here.
-		logger.Printf("For Chromium, Playwright is expected to find the executable. Path check in prepareBrowser is primarily for confirmation if `getBrowserExecutablePath` is implemented for Chromium.")
+		logger.Printf("For Chromium, Playwright is expected to find the executable. Path check in prepareBrowser is primarily for confirmation if `GetBrowserExecutablePath` is implemented for Chromium.")
 		// Call to check if path hint logic is working as expected
-		_, err = getBrowserExecutablePath(browserName, baseInstallDirForChromium)
+		_, err = GetBrowserExecutablePath(browserName, baseInstallDirForChromium)
 		if err != nil {
-			logger.Printf("Note: Could not determine a hint for Chromium executable path via getBrowserExecutablePath: %v. This is often okay as Playwright handles it.", err)
+			logger.Printf("Note: Could not determine a hint for Chromium executable path via GetBrowserExecutablePath: %v. This is often okay as Playwright handles it.", err)
 		}
 		// No specific executable path is returned since Playwright auto-detects it.
 		// No specific cleanup is needed for Chromium from this function.

@@ -13,7 +13,7 @@ const defaultLightpandaExecutableName = "lightpanda"
 // userHomeDir is a variable to allow mocking os.UserHomeDir in tests.
 var userHomeDir = os.UserHomeDir
 
-func getAppSubdirectory(subPath ...string) (string, error) {
+func GetAppSubdirectory(subPath ...string) (string, error) {
 	var baseDir string
 	var err error
  
@@ -63,7 +63,7 @@ var getBrowserExecutablePathActual = func(browserName string, baseInstallDir ...
 	switch browserName {
 	case "lightpanda":
   // Lightpanda is installed in Sitepanda's own 'bin' directory.
-		sitepandaBinDir, err := getAppSubdirectory("bin")
+		sitepandaBinDir, err := GetAppSubdirectory("bin")
 		if err != nil {
 			return "", fmt.Errorf("failed to get application binary directory for Lightpanda: %w", err)
 		}
@@ -97,5 +97,5 @@ var getBrowserExecutablePathActual = func(browserName string, baseInstallDir ...
 	}
 }
 
-// getBrowserExecutablePath is assigned to the actual function to allow mocking in tests.
-var getBrowserExecutablePath = getBrowserExecutablePathActual
+// GetBrowserExecutablePath is assigned to the actual function to allow mocking in tests.
+var GetBrowserExecutablePath = getBrowserExecutablePathActual
