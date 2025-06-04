@@ -1,13 +1,14 @@
 # Sitepanda
 
-Sitepanda is a command-line interface (CLI) tool written in Go. It is designed to scrape websites using a headless browser (Chromium by default, or Lightpanda, controlled via Playwright), starting from a user-provided URL. The primary goal is to extract the main readable content from web pages and save it as Markdown. This project is inspired by the functionality of [sitefetch](https://github.com/egoist/sitefetch).
+Sitepanda is a command-line interface (CLI) tool written in Go. It is designed to scrape websites using a headless browser (Chromium by default, or Lightpanda, controlled via Playwright), starting from a user-provided URL or a list of URLs from a file. The primary goal is to extract the main readable content from web pages and save it as Markdown. This project is inspired by the functionality of [sitefetch](https://github.com/egoist/sitefetch).
 
 **Note on Default Browser:** While Sitepanda initially defaulted to Lightpanda, Chromium is now the default browser due to its broader compatibility and stability. Lightpanda remains an option for users who prefer it, but if you encounter issues with Lightpanda, we recommend using Chromium (`--browser chromium` or by default).
 
 ## Features
 
 *   Scrapes websites starting from a given URL.
-*   Crawls same-domain links to discover pages.
+*   Processes a list of URLs from a file (`--url-file`), in addition to a single starting URL.
+*   Crawls same-domain links to discover pages (when not using `--url-file`).
 *   Uses a headless browser (Chromium by default, or Lightpanda, controlled via Playwright) for page fetching and JavaScript execution, enabling interaction with dynamic, JavaScript-rich websites.
     *   Browser dependencies (Chromium or Lightpanda) are managed by Sitepanda. The `init` command downloads and installs the chosen browser.
     *   Chromium is the recommended default due to its stability and wide compatibility.
@@ -17,7 +18,7 @@ Sitepanda is a command-line interface (CLI) tool written in Go. It is designed t
 *   Outputs the scraped data (title, URL, Markdown content) in an XML-like text format by default.
 *   If the `--outfile` path ends with `.json`, output is in JSON format (an array of page objects).
 *   Provides options to filter pages by URL patterns (`--match`) and to stop crawling once a specified number of pages have had their content saved (`--limit`).
-*   Allows specifying URL patterns (`--follow-match`) to restrict which discovered links are added to the crawl queue, preventing crawls from expanding into unwanted areas (e.g., other user profiles on a social media site).
+*   Allows specifying URL patterns (`--follow-match`) to restrict which discovered links are added to the crawl queue, preventing crawls from expanding into unwanted areas (e.g., other user profiles on a social media site). This is not applicable when using `--url-file`.
 *   Allows specifying a CSS selector (`--content-selector`) to target the main content area of a page for more precise extraction (this bypasses the default pre-filtering).
 *   Allows switching page load waiting strategy between `load` (default) and `networkidle` using the `--wait-for-network-idle` or `-wni` flag.
 
@@ -45,25 +46,26 @@ Sitepanda is a command-line interface (CLI) tool written in Go. It is designed t
 Sitepanda provides the following CLI structure:
 
 ```bash
-sitepanda [command] [options] <url>
+sitepanda [command] [options] <url_or_url_file_option>
 ```
 
 **Commands:**
 
 *   `init [chromium|lightpanda]`: Downloads and installs the specified browser dependency (default: `chromium`). `chromium` is installed by Playwright into a Sitepanda-managed directory. `lightpanda` is installed to a user-specific data directory. This must be run once before scraping with the chosen browser.
-*   If no command is specified, Sitepanda assumes a URL is provided and attempts to start scraping.
+*   If no command is specified, Sitepanda assumes a URL is provided (or `--url-file` is used) and attempts to start scraping.
 
 **Arguments (for scraping):**
 
-*   `url`: The starting URL to fetch.
+*   `url`: The starting URL to fetch. This is ignored if `--url-file` is specified.
 
 **Options (for scraping):** 
 
 *   `--browser <name>, -b <name>`: Specify the browser to use for scraping (`chromium` or `lightpanda`). Default: `chromium` (or the value of the `SITEPANDA_BROWSER` environment variable if set).
+*   `--url-file <path>`: Path to a file containing a list of URLs to process (one URL per line). If specified, Sitepanda will process each URL from this file individually. This option overrides the `<url>` argument. When `--url-file` is used, the `--follow-match` option is ignored as crawling beyond the provided URLs is not applicable.
 *   `-o, --outfile <path>`: Write the fetched site to a text file. If the path ends with `.json`, the output will be in JSON format. Otherwise, it defaults to an XML-like text format.
-*   `-m, --match <pattern>`: Only extract content from matched pages (glob pattern, can be specified multiple times). Non-matching pages on the same domain are still crawled for links until the `--limit` is reached.
-*   `--follow-match <pattern>`: Only add links matching this glob pattern to the crawl queue (can be specified multiple times). This helps control the scope of the crawl. For example, on a social media site, you might use `--follow-match "/username/**"` to only crawl links related to a specific user.
-*   `--limit <number>`: Stop crawling and fetching new pages once this many pages have had their content successfully saved (0 for no limit).
+*   `-m, --match <pattern>`: Only extract content from matched pages (glob pattern, can be specified multiple times). Non-matching pages on the same domain are still crawled for links until the `--limit` is reached (this crawling behavior does not apply when `--url-file` is used).
+*   `--follow-match <pattern>`: Only add links matching this glob pattern to the crawl queue (can be specified multiple times). This helps control the scope of the crawl. For example, on a social media site, you might use `--follow-match "/username/**"` to only crawl links related to a specific user. This option is ignored if `--url-file` is used.
+*   `--limit <number>`: Stop processing/fetching new pages once this many pages have had their content successfully saved (0 for no limit).
 *   `--content-selector <selector>`: Specify a CSS selector (e.g., `.article-body`) to identify the main content area of a page. If provided, `go-readability` will process only the content of the first matching element; the default HTML pre-filtering (of script, img, etc.) is skipped in this case. If the selector is provided but does not match any elements on the page, Sitepanda will fall back to processing the original, full HTML content without applying the default pre-filtering.
 *   `--wait-for-network-idle, -wni`: Wait for network to be idle instead of just `load` (default) when fetching pages. This can be useful for pages that load content dynamically after the initial `load` event.
 *   `--silent`: Do not print any logs.
@@ -79,6 +81,7 @@ sitepanda [command] [options] <url>
 *   A set (or map) tracks visited URLs to prevent re-fetching and loops.
 *   Links are filtered to ensure they are on the same host as the starting URL and use HTTP/HTTPS.
 *   If `--follow-match` patterns are provided, discovered links are further filtered. Only links whose paths match one of these patterns will be added to the queue for crawling.
+*   When `--url-file` is used, Sitepanda processes each URL from the file directly. It does not crawl for new links from these pages, and thus the `--follow-match` option is not applied in this mode.
 *   Connection to the browser (Chromium via Playwright launch, or Lightpanda via CDP) for robust interaction with dynamic web pages.
 *   Page fetching waits for the `load` event by default. If `--wait-for-network-idle` or `-wni` is specified, it waits for the network to become idle.
 *   If a `--content-selector` is provided, Sitepanda attempts to extract HTML from the first matching element. This specific HTML is then passed to the readability engine.
@@ -130,20 +133,21 @@ Sitepanda supports two output formats:
 
 **Current Functionality:**
 *   CLI with `init [browser]` command for Lightpanda or Chromium setup.
-*   CLI flags for URL, outfile (supports `.json` for JSON output), limit, match, follow-match, content-selector, silent, version, and `browser` (with `-b` shorthand, defaulting to Chromium).
+*   CLI flags for URL, url-file, outfile (supports `.json` for JSON output), limit, match, follow-match, content-selector, silent, version, and `browser` (with `-b` shorthand, defaulting to Chromium).
 *   CLI flag `--wait-for-network-idle` (with `-wni` shorthand) to control page load waiting strategy.
 *   Support for `SITEPANDA_BROWSER` environment variable to set the default browser (Chromium or Lightpanda).
 *   Dynamic download, installation, and launching/termination of browser dependencies (Lightpanda or Chromium via Playwright).
 *   Launch/control of Chromium via Playwright (default) or connection to Lightpanda via CDP for robust interaction with dynamic web pages.
-*   Sequential crawling of same-domain URLs starting from a given URL, using a single browser page instance.
+*   Sequential crawling of same-domain URLs starting from a given URL, using a single browser page instance (when not using `--url-file`).
+*   Processing of a list of URLs from a file (when using `--url-file`).
 *   URL normalization to handle minor variations.
 *   Default HTML pre-filtering (removes script, style, link, img, video tags) when `--content-selector` is not used.
 *   Extraction of readable content using `go-readability`, optionally guided by `--content-selector`.
 *   Conversion of extracted HTML to Markdown.
 *   Output of (Title, URL, Markdown Content) in XML-like text format or JSON format to file, or XML-like text to stdout.
-*   `--limit` functionality stops the crawl once the specified number of pages have had their content saved. 
+*   `--limit` functionality stops the process once the specified number of pages have had their content saved. 
 *   `--match` functionality filters which pages have their content saved.
-*   `--follow-match` functionality filters which links are added to the crawl queue.
+*   `--follow-match` functionality filters which links are added to the crawl queue (ignored when `--url-file` is used).
 *   Graceful shutdown on OS signals.
 *   Initial unit tests for URL normalization and other components.
 
@@ -222,6 +226,9 @@ sitepanda --outfile output.txt --match "/blog/**" https://example.com
 # Scrape using Chromium (default) and output in JSON format to output.json
 sitepanda --outfile output.json --match "/blog/**" https://example.com
 
+# Scrape multiple URLs from a file named urls.txt and output to output.json
+sitepanda --url-file urls.txt --outfile output.json
+
 # Scrape using Lightpanda (short option) and output in JSON format to output.json
 sitepanda -b lightpanda --outfile output.json --match "/blog/**" https://example.com
 
@@ -258,9 +265,11 @@ Sitepanda is licensed under the [MIT License](LICENSE).
 *   **Testing (Unit Tests):**
     *   Ensure comprehensive unit tests for new path management and `init` command logic for both browsers.
     *   Add unit tests for the `--wait-for-network-idle` / `-wni` flag logic.
+    *   Add unit tests for `--url-file` functionality.
 *   **Testing (Integration Tests):**
     *   Develop integration tests for the end-to-end scraping process with both Lightpanda and Chromium, including the `init` flow.
     *   Include test cases for different page load waiting strategies.
+    *   Include test cases for `--url-file` functionality.
 *   **Robustness and Error Handling:**
     *   Further refine error handling for `sitepanda init [browser]` (network issues, disk space, permissions).
 *   **CLI Refinements:**
