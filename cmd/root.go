@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "0.1.0"
 
 
 var (
@@ -15,6 +14,9 @@ var (
 	browserName         string
 	silent              bool
 	showVersion         bool
+	
+	// Version function to be set by main package
+	VersionFunc func() string
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -31,7 +33,11 @@ Commands:
   scrape  Scrape websites and save content as Markdown`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if showVersion {
-			fmt.Println(version)
+			if VersionFunc != nil {
+				fmt.Println(VersionFunc())
+			} else {
+				fmt.Println("version not available")
+			}
 			return
 		}
 		

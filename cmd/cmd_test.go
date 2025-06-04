@@ -38,7 +38,7 @@ func TestRootCommand(t *testing.T) {
 			name:          "Version flag",
 			args:          []string{"--version"},
 			expectedError: false,
-			expectedOut:   "0.1.0",
+			expectedOut:   "test-version",
 		},
 		{
 			name:          "Help flag",
@@ -59,7 +59,7 @@ func TestRootCommand(t *testing.T) {
 					// Check if version flag is set
 					versionFlag, _ := cmd.Flags().GetBool("version")
 					if versionFlag {
-						cmd.Print("0.1.0")
+						cmd.Print("test-version")
 						return
 					}
 					cmd.Help()
