@@ -82,7 +82,7 @@ These flags work with all commands:
 *   `-o, --outfile <path>`: Write the fetched site to a text file. If the path ends with `.json`, the output will be in JSON format. Otherwise, it defaults to an XML-like text format.
 *   `-m, --match <pattern>`: Only extract content from matched pages (glob pattern, can be specified multiple times). Non-matching pages on the same domain are still crawled for links until the `--limit` is reached (this crawling behavior does not apply when `--url-file` is used).
 *   `--follow-match <pattern>`: Only add links matching this glob pattern to the crawl queue (can be specified multiple times). This helps control the scope of the crawl. For example, on a social media site, you might use `--follow-match "/username/**"` to only crawl links related to a specific user. This option is ignored if `--url-file` is used.
-*   `--limit <number>`: Stop processing/fetching new pages once this many pages have had their content successfully saved (0 for no limit).
+*   `--limit <number>`: Stop processing/fetching new pages once this many pages have had their content successfully saved (0 for no limit). If the process is interrupted (Ctrl+C), partial results will be saved.
 *   `--content-selector <selector>`: Specify a CSS selector (e.g., `.article-body`) to identify the main content area of a page. If provided, `go-readability` will process only the content of the first matching element; the default HTML pre-filtering (of script, img, etc.) is skipped in this case. If the selector is provided but does not match any elements on the page, Sitepanda will fall back to processing the original, full HTML content without applying the default pre-filtering.
 *   `--wait-for-network-idle, -wni`: Wait for network to be idle instead of just `load` (default) when fetching pages. This can be useful for pages that load content dynamically after the initial `load` event.
 
@@ -143,6 +143,7 @@ Sitepanda supports two output formats:
 *   A simple logger outputs `INFO` and `WARN` level messages.
 *   The `--silent` flag suppresses all log output.
 *   Errors encountered during page fetching or processing are logged. Sitepanda attempts to continue processing other pages if the error is page-specific, but will halt the crawl if critical browser connection errors occur or if the required browser is not installed (guiding the user to run `sitepanda init [browser]`).
+*   **Graceful Shutdown**: When the process receives an interrupt signal (Ctrl+C/SIGINT) or termination signal (SIGTERM), Sitepanda will stop crawling new pages and save all successfully scraped content up to that point. This ensures that partial results are not lost during long-running scrapes.
 
 ## Current Status and Known Issues
 
@@ -163,7 +164,7 @@ Sitepanda supports two output formats:
 *   `--limit` functionality stops the process once the specified number of pages have had their content saved. 
 *   `--match` functionality filters which pages have their content saved.
 *   `--follow-match` functionality filters which links are added to the crawl queue (ignored when `--url-file` is used).
-*   Graceful shutdown on OS signals.
+*   Graceful shutdown on OS signals with partial results saving.
 *   Initial unit tests for URL normalization and other components.
 
 **Known Issues:**
@@ -271,6 +272,16 @@ sitepanda scrape --content-selector ".main-article-body" \
 sitepanda scrape --wait-for-network-idle --outfile output.json https://example.com
 # or use the short form:
 sitepanda scrape -wni --outfile output.json https://example.com
+```
+
+### Graceful Cancellation
+
+```bash
+# Start a large scraping job
+sitepanda scrape --limit 100 --outfile results.json https://example.com
+
+# Press Ctrl+C to cancel - partial results will be saved
+# The output file will contain all pages successfully scraped before cancellation
 ```
 
 ### Browser Selection

@@ -82,6 +82,18 @@ The `browser.go` file provides a unified interface (`prepareBrowser`, `launchBro
 4. **Readability Extraction**: Uses `go-readability` to extract main content
 5. **Markdown Conversion**: Converts extracted HTML to Markdown with GitHub Flavored Markdown support
 
+### Graceful Cancellation
+
+The crawler supports graceful shutdown with partial results preservation:
+- **Signal Handling**: Listens for SIGINT (Ctrl+C) and SIGTERM signals in `scraping_handler.go`
+- **Context Cancellation**: Uses Go's context package to propagate cancellation through the crawler
+- **Partial Results**: When cancelled, the crawler:
+  - Stops fetching new pages immediately
+  - Breaks out of the crawl loop gracefully
+  - Saves all successfully scraped pages to the output file
+  - Logs the number of partial results saved
+- **Implementation**: The `Crawler` struct exposes a `Cancel()` method that cancels its internal context
+
 ### URL Management
 
 - URL normalization and validation in `fetcher.go`

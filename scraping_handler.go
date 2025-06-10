@@ -115,14 +115,6 @@ func HandleScraping(args []string) {
 		}
 	}()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		sig := <-sigChan
-		logger.Printf("Received signal: %v. Shutting down...", sig)
-		os.Exit(1)
-	}()
-
 	// Configuration logging
 	outfile := cmd.GetOutfile()
 	matchPatterns := cmd.GetMatchPatterns()
@@ -177,6 +169,15 @@ func HandleScraping(args []string) {
 		}
 		logger.Fatalf("Failed to initialize crawler: %v", crawlerErr)
 	}
+
+	// Setup signal handling for graceful shutdown with partial results
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		sig := <-sigChan
+		logger.Printf("Received signal: %v. Shutting down gracefully and saving partial results...", sig)
+		crawler.Cancel()
+	}()
 
 	crawlErr := crawler.Crawl()
 	if crawlErr != nil {
