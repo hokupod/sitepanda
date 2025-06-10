@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Project Version**: v0.1.0 - Modern CLI architecture with Cobra framework
+**Project Version**: v0.1.1 - Modern CLI architecture with Cobra framework
 
 ## Common Development Commands
 
@@ -82,6 +82,18 @@ The `browser.go` file provides a unified interface (`prepareBrowser`, `launchBro
 4. **Readability Extraction**: Uses `go-readability` to extract main content
 5. **Markdown Conversion**: Converts extracted HTML to Markdown with GitHub Flavored Markdown support
 
+### Graceful Cancellation
+
+The crawler supports graceful shutdown with partial results preservation:
+- **Signal Handling**: Listens for SIGINT (Ctrl+C) and SIGTERM signals in `scraping_handler.go`
+- **Context Cancellation**: Uses Go's context package to propagate cancellation through the crawler
+- **Partial Results**: When cancelled, the crawler:
+  - Stops fetching new pages immediately
+  - Breaks out of the crawl loop gracefully
+  - Saves all successfully scraped pages to the output file
+  - Logs the number of partial results saved
+- **Implementation**: The `Crawler` struct exposes a `Cancel()` method that cancels its internal context
+
 ### URL Management
 
 - URL normalization and validation in `fetcher.go`
@@ -135,7 +147,7 @@ The `init` subcommand downloads and installs browser dependencies:
 
 Browser executables are stored in platform-specific locations managed by `paths.go`.
 
-## CLI Command Structure (v0.1.0)
+## CLI Command Structure (v0.1.1)
 
 **Important**: This is a breaking change from v0.0.x. The CLI now uses subcommands instead of direct URL arguments.
 
@@ -164,6 +176,10 @@ Browser executables are stored in platform-specific locations managed by `paths.
 - Can be overridden by `--browser` flag
 
 ## Development Notes
+
+### v0.1.1 Changes
+- **Bug fix**: Fixed cancellation behavior to properly exit crawl loop and save partial results
+- **Improvement**: Added proper loop labeling for graceful shutdown handling
 
 ### v0.1.0 Architectural Changes
 - **Major refactor**: Moved from flag-based to Cobra subcommand architecture

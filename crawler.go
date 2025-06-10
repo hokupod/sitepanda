@@ -234,6 +234,12 @@ func NewCrawlerForPlaywrightBrowser(
 	return newCrawlerCommon(parsedStartURL, urlList, isListMode, pwB, pageLimit, compiledMatchPatterns, compiledFollowPatterns, contentSelector, outfile, silent, waitForNetworkIdle, rootCtxForCrawler, rootCrawlerCancel)
 }
 
+func (c *Crawler) Cancel() {
+	if c.cancel != nil {
+		c.cancel()
+	}
+}
+
 func (c *Crawler) Crawl() error {
 	defer func() {
 		if c.page != nil && !c.page.IsClosed() {
@@ -285,10 +291,11 @@ func (c *Crawler) Crawl() error {
 
 	logger.Printf("Starting crawl. Initial queue size: %d. Start URL for context: %s", len(queue), c.startURL.String())
 
+OuterCrawlLoop:
 	for len(queue) > 0 {
 		if c.rootCtx.Err() != nil {
-			logger.Printf("Root context canceled. Stopping crawl. Error: %v", c.rootCtx.Err())
-			return c.rootCtx.Err()
+			logger.Printf("Root context canceled. Stopping crawl and saving partial results. Error: %v", c.rootCtx.Err())
+			break // Don't return error, continue to save partial results
 		}
 
 		currentURLStr := queue[0]
@@ -313,9 +320,9 @@ func (c *Crawler) Crawl() error {
 
 		for attempt := 0; attempt <= maxRetries; attempt++ {
 			if c.rootCtx.Err() != nil {
-				logger.Printf("Root context canceled before fetching %s, attempt %d. Stopping fetch for this URL.", currentURLStr, attempt+1)
+				logger.Printf("Root context canceled before fetching %s, attempt %d. Stopping crawl to save partial results.", currentURLStr, attempt+1)
 				fetchErr = c.rootCtx.Err()
-				break
+				break OuterCrawlLoop
 			}
 			htmlContent, fetchErr = fetchPageHTML(c.page, c.rootCtx, currentURLStr, c.waitForNetworkIdle)
 			if fetchErr == nil {
@@ -343,14 +350,14 @@ func (c *Crawler) Crawl() error {
 				strings.Contains(errMsgFromFetch, "net::ERR_CONNECTION_REFUSED")
 
 			if isCriticalError {
-				finalErrMsg := fmt.Sprintf("Critical error encountered while fetching %s: %v. Stopping crawl.", currentURLStr, fetchErr)
 				if c.rootCtx.Err() != nil {
-					finalErrMsg = fmt.Sprintf("Root context done (%v), implies critical error. Original fetch error for %s: %v. Stopping crawl.", c.rootCtx.Err(), currentURLStr, fetchErr)
+					logger.Printf("Root context done (%v), stopping crawl to save partial results. Original fetch error for %s: %v", c.rootCtx.Err(), currentURLStr, fetchErr)
 				} else if c.pwBrowser != nil && !c.pwBrowser.IsConnected() {
-					finalErrMsg = fmt.Sprintf("Playwright browser disconnected. Original fetch error for %s: %v. Stopping crawl.", currentURLStr, fetchErr)
+					logger.Printf("Playwright browser disconnected. Stopping crawl to save partial results. Original fetch error for %s: %v", currentURLStr, fetchErr)
+				} else {
+					logger.Printf("Critical error encountered while fetching %s: %v. Stopping crawl to save partial results.", currentURLStr, fetchErr)
 				}
-				logger.Println(finalErrMsg)
-				return errors.New(finalErrMsg)
+				break // Don't return error, break to save partial results
 			}
 			logger.Printf("Skipping page %s due to non-critical fetch error after retries: %v", currentURLStr, fetchErr)
 			continue
@@ -372,7 +379,7 @@ func (c *Crawler) Crawl() error {
 				for _, normalizedLinkStr := range links {
 					if _, visited := c.visited[normalizedLinkStr]; !visited {
 						if c.rootCtx.Err() != nil {
-							logger.Printf("Root context canceled. Not adding more links to queue.")
+							logger.Printf("Root context canceled. Not adding more links to queue. Will save partial results.")
 							break
 						}
 						c.visited[normalizedLinkStr] = true
@@ -384,7 +391,11 @@ func (c *Crawler) Crawl() error {
 		}
 	}
 
-	logger.Printf("Crawl finished. Total pages visited (dequeued for processing): %d. Total results saved: %d", len(c.visited), len(c.results))
+	if c.rootCtx.Err() != nil {
+		logger.Printf("Crawl stopped due to cancellation. Total pages visited: %d. Partial results to save: %d", len(c.visited), len(c.results))
+	} else {
+		logger.Printf("Crawl finished. Total pages visited (dequeued for processing): %d. Total results saved: %d", len(c.visited), len(c.results))
+	}
 
 	if len(c.results) > 0 {
 		if c.outfile != "" && strings.HasSuffix(strings.ToLower(c.outfile), ".json") {
