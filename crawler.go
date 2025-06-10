@@ -291,6 +291,7 @@ func (c *Crawler) Crawl() error {
 
 	logger.Printf("Starting crawl. Initial queue size: %d. Start URL for context: %s", len(queue), c.startURL.String())
 
+OuterCrawlLoop:
 	for len(queue) > 0 {
 		if c.rootCtx.Err() != nil {
 			logger.Printf("Root context canceled. Stopping crawl and saving partial results. Error: %v", c.rootCtx.Err())
@@ -321,7 +322,7 @@ func (c *Crawler) Crawl() error {
 			if c.rootCtx.Err() != nil {
 				logger.Printf("Root context canceled before fetching %s, attempt %d. Stopping crawl to save partial results.", currentURLStr, attempt+1)
 				fetchErr = c.rootCtx.Err()
-				break
+				break OuterCrawlLoop
 			}
 			htmlContent, fetchErr = fetchPageHTML(c.page, c.rootCtx, currentURLStr, c.waitForNetworkIdle)
 			if fetchErr == nil {

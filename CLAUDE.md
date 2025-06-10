@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Project Version**: v0.1.0 - Modern CLI architecture with Cobra framework
+**Project Version**: v0.1.1 - Modern CLI architecture with Cobra framework
 
 ## Common Development Commands
 
@@ -147,7 +147,7 @@ The `init` subcommand downloads and installs browser dependencies:
 
 Browser executables are stored in platform-specific locations managed by `paths.go`.
 
-## CLI Command Structure (v0.1.0)
+## CLI Command Structure (v0.1.1)
 
 **Important**: This is a breaking change from v0.0.x. The CLI now uses subcommands instead of direct URL arguments.
 
@@ -176,6 +176,10 @@ Browser executables are stored in platform-specific locations managed by `paths.
 - Can be overridden by `--browser` flag
 
 ## Development Notes
+
+### v0.1.1 Changes
+- **Bug fix**: Fixed cancellation behavior to properly exit crawl loop and save partial results
+- **Improvement**: Added proper loop labeling for graceful shutdown handling
 
 ### v0.1.0 Architectural Changes
 - **Major refactor**: Moved from flag-based to Cobra subcommand architecture
