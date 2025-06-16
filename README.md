@@ -138,12 +138,33 @@ Sitepanda supports two output formats:
     ]
     ```
 
+### Shell Redirection
+
+When not using `--outfile`, Sitepanda outputs scraped content to stdout and logs to stderr, allowing clean shell redirection:
+
+```bash
+# Redirect only scraped content to file (logs appear in terminal)
+sitepanda scrape https://example.com > output.txt
+
+# Redirect content and logs to separate files
+sitepanda scrape https://example.com > output.txt 2> logs.txt
+
+# Redirect both to the same file
+sitepanda scrape https://example.com > all_output.txt 2>&1
+
+# Suppress logs while redirecting content
+sitepanda scrape https://example.com --silent > output.txt
+# or
+sitepanda scrape https://example.com > output.txt 2>/dev/null
+```
+
 ## Logging and Error Handling
 
-*   A simple logger outputs `INFO` and `WARN` level messages.
+*   A simple logger outputs `INFO` and `WARN` level messages to **stderr** (standard error stream).
 *   The `--silent` flag suppresses all log output.
 *   Errors encountered during page fetching or processing are logged. Sitepanda attempts to continue processing other pages if the error is page-specific, but will halt the crawl if critical browser connection errors occur or if the required browser is not installed (guiding the user to run `sitepanda init [browser]`).
 *   **Graceful Shutdown**: When the process receives an interrupt signal (Ctrl+C/SIGINT) or termination signal (SIGTERM), Sitepanda will stop crawling new pages and save all successfully scraped content up to that point. This ensures that partial results are not lost during long-running scrapes.
+*   **Output Separation**: Scraped content is written to **stdout** (standard output), while logs are written to **stderr**. This allows for clean shell redirection of scraped content without log messages.
 
 ## Current Status and Known Issues
 
@@ -343,6 +364,18 @@ go test . -run TestProcessHTML      # Test specific functions
 Sitepanda is licensed under the [MIT License](LICENSE).
 
 ## Development Status
+
+### v0.1.1, 0.1.2 - Bug Fix Release
+
+This release fixes the cancellation behavior and improves output handling.
+
+#### 🐛 Bug Fixes
+*   **Fixed cancellation behavior**: Ctrl+C now properly exits the crawl loop and saves partial results
+*   **Improved signal handling**: Added proper loop labeling for graceful shutdown
+
+#### 📖 Documentation
+*   **Output redirection**: Clarified that logs go to stderr and content to stdout for clean shell redirection
+*   **Shell redirection examples**: Added comprehensive examples for different redirection scenarios
 
 ### v0.1.0 - Major Release 🎉
 

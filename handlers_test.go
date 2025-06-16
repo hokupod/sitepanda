@@ -116,8 +116,8 @@ func TestUtilityFunctions(t *testing.T) {
 		if Version == "" {
 			t.Error("Version constant should not be empty")
 		}
-		if Version != "0.1.1" {
-			t.Errorf("Expected version to be '0.1.1', got %q", Version)
+		if Version != "0.1.2" {
+			t.Errorf("Expected version to be '0.1.2', got %q", Version)
 		}
 	})
 
