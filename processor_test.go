@@ -76,8 +76,8 @@ func TestProcessHTML(t *testing.T) {
 			// Actual behavior: readability.FromReader uses the parsedURL to fetch the original page for metadata if the snippet is partial.
 			// Since our snippet is from rawHTML, it might not have enough context for title.
 			// When processing a snippet, readability might not find a page title.
-			wantTitle:       "",
-			wantMarkdown:    "Article Title",
+			wantTitle:    "",
+			wantMarkdown: "Article Title",
 			// Also, image URL will be resolved by readability.
 			wantArticleHTML: "<h2>Article Title</h2><p>Selected content here. <img src=\"http://example.com/inline.jpg\" alt=\"Inline\"></p>",
 			expectError:     false,

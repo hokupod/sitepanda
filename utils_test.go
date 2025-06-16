@@ -85,10 +85,10 @@ func TestLoggerExists(t *testing.T) {
 	defer func() { logger = originalLogger }()
 
 	SetLoggerOutput(&buf)
-	
+
 	// This should not panic
 	logger.Print("test")
-	
+
 	if buf.Len() == 0 {
 		t.Error("Expected logger to write some output")
 	}

@@ -7,14 +7,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
-
 var (
 	// Global flags
-	browserName         string
-	silent              bool
-	showVersion         bool
-	
+	browserName string
+	silent      bool
+	showVersion bool
+
 	// Version function to be set by main package
 	VersionFunc func() string
 )
@@ -40,7 +38,7 @@ Commands:
 			}
 			return
 		}
-		
+
 		// Show help if no subcommand is provided
 		cmd.Help()
 	},
@@ -63,11 +61,11 @@ func init() {
 			defaultBrowser = envBrowser
 		}
 	}
-	
+
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&browserName, "browser", "b", defaultBrowser, "Browser to use for scraping ('lightpanda' or 'chromium')")
 	rootCmd.PersistentFlags().BoolVar(&silent, "silent", false, "Do not print any logs")
-	
+
 	// Root command specific flags
 	rootCmd.Flags().BoolVar(&showVersion, "version", false, "Show version information")
 }

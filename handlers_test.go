@@ -151,7 +151,7 @@ func TestPathOperationsWithMocking(t *testing.T) {
 	t.Run("GetBrowserExecutablePath original function", func(t *testing.T) {
 		// Test the original function behavior
 		// GetBrowserExecutablePath is a variable that can be modified for mocking
-		
+
 		// Test lightpanda path
 		lpPath, err := GetBrowserExecutablePath("lightpanda")
 		if err != nil {

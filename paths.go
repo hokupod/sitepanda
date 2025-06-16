@@ -9,14 +9,13 @@ import (
 
 const defaultLightpandaExecutableName = "lightpanda"
 
-
 // userHomeDir is a variable to allow mocking os.UserHomeDir in tests.
 var userHomeDir = os.UserHomeDir
 
 func GetAppSubdirectory(subPath ...string) (string, error) {
 	var baseDir string
 	var err error
- 
+
 	var appDirName string
 
 	switch runtime.GOOS {
@@ -40,7 +39,7 @@ func GetAppSubdirectory(subPath ...string) (string, error) {
 		baseDir = filepath.Join(homeDir, "Library", "Application Support")
 		appDirName = "Sitepanda"
 	default:
-  
+
 		return "", fmt.Errorf("unsupported OS for general app subdirectory: %s. This function is for Sitepanda's own directories like 'bin' or 'playwright_driver'", runtime.GOOS)
 	}
 
@@ -62,7 +61,7 @@ func GetAppSubdirectory(subPath ...string) (string, error) {
 var getBrowserExecutablePathActual = func(browserName string, baseInstallDir ...string) (string, error) {
 	switch browserName {
 	case "lightpanda":
-  // Lightpanda is installed in Sitepanda's own 'bin' directory.
+		// Lightpanda is installed in Sitepanda's own 'bin' directory.
 		sitepandaBinDir, err := GetAppSubdirectory("bin")
 		if err != nil {
 			return "", fmt.Errorf("failed to get application binary directory for Lightpanda: %w", err)
@@ -72,25 +71,25 @@ var getBrowserExecutablePathActual = func(browserName string, baseInstallDir ...
 		if len(baseInstallDir) == 0 || baseInstallDir[0] == "" {
 			return "", fmt.Errorf("baseInstallDir (Playwright DriverDirectory) is required for Chromium path hint")
 		}
-  
+
 		var playwrightVersion string
 		playwrightVersion = "unknown-pw-version"
 
 		var chromiumPathHint string
 		switch runtime.GOOS {
 		case "linux":
-   
+
 			chromiumPathHint = filepath.Join(baseInstallDir[0], "ms-playwright", playwrightVersion, "chromium", "linux", "chrome")
 		case "darwin":
-   
+
 			chromiumPathHint = filepath.Join(baseInstallDir[0], "ms-playwright", playwrightVersion, "chromium", "mac", "Chromium.app", "Contents", "MacOS", "Chromium")
 		case "windows":
-   
+
 			chromiumPathHint = filepath.Join(baseInstallDir[0], "ms-playwright", playwrightVersion, "chromium", "win64", "chrome.exe")
 		default:
 			return "", fmt.Errorf("chromium path hint generation not supported for OS: %s", runtime.GOOS)
 		}
-  
+
 		return chromiumPathHint, fmt.Errorf("path hint for Chromium (%s) is unreliable; Playwright should auto-detect. Error returned to indicate this", chromiumPathHint)
 	default:
 		return "", fmt.Errorf("unsupported browser name for path: %s", browserName)

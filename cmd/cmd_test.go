@@ -167,7 +167,7 @@ func TestInitCommand(t *testing.T) {
 							return fmt.Errorf("'init' command supports 'lightpanda' or 'chromium' as an argument. Got: %s", browserToInit)
 						}
 					}
-					
+
 					if InitHandler != nil {
 						InitHandler(browserToInit)
 						return nil
