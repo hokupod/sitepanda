@@ -29,7 +29,7 @@ The browser will be installed to a user-specific data directory and can be used 
 				os.Exit(1)
 			}
 		}
-		
+
 		handleInitCommand(browserToInit)
 	},
 }

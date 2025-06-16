@@ -33,25 +33,25 @@ func mockGetBrowserExecutablePathHelper(t *testing.T, browserName string, expect
 
 func TestPrepareBrowser(t *testing.T) { // Renamed from TestPrepareLightpanda
 	tests := []struct {
-		name                    string
-		browserName             string // "lightpanda" or "chromium"
-		mockPath                string // Path to mock for GetBrowserExecutablePath
-		mockPathError           error  // Error to return from mock
-		mockBaseDirForChromium  string // Expected base directory for Chromium
-		setupFileAtPath         bool   // Create a dummy file at mockPath
-		setupDirAtPath          bool   // Create a dummy directory at mockPath
-		expectError             bool
-		expectedErrorMsgSubstr  string
-		expectedLogSubstr       string
+		name                   string
+		browserName            string // "lightpanda" or "chromium"
+		mockPath               string // Path to mock for GetBrowserExecutablePath
+		mockPathError          error  // Error to return from mock
+		mockBaseDirForChromium string // Expected base directory for Chromium
+		setupFileAtPath        bool   // Create a dummy file at mockPath
+		setupDirAtPath         bool   // Create a dummy directory at mockPath
+		expectError            bool
+		expectedErrorMsgSubstr string
+		expectedLogSubstr      string
 	}{
 		// Lightpanda cases
 		{
-			name:                   "Lightpanda success - executable exists",
-			browserName:            "lightpanda",
-			mockPath:               "temppath/lightpanda_exec/lightpanda", // This path will be joined with tempDir
-			setupFileAtPath:        true,
-			expectError:            false,
-			expectedLogSubstr:      "Using lightpanda binary from:",
+			name:              "Lightpanda success - executable exists",
+			browserName:       "lightpanda",
+			mockPath:          "temppath/lightpanda_exec/lightpanda", // This path will be joined with tempDir
+			setupFileAtPath:   true,
+			expectError:       false,
+			expectedLogSubstr: "Using lightpanda binary from:",
 		},
 		{
 			name:                   "Lightpanda failure - GetBrowserExecutablePath returns error",
@@ -80,10 +80,10 @@ func TestPrepareBrowser(t *testing.T) { // Renamed from TestPrepareLightpanda
 		{
 			name:                   "Chromium success - Playwright handles it, GetBrowserExecutablePath hint returns error",
 			browserName:            "chromium",
-			mockBaseDirForChromium: "temp_playwright_driver_dir_chromium_ok", // Specific base dir for this test
+			mockBaseDirForChromium: "temp_playwright_driver_dir_chromium_ok",                                            // Specific base dir for this test
 			mockPath:               "temp_playwright_driver_dir_chromium_ok/ms-playwright/version/chromium-blah/chrome", // Example path from GetBrowserExecutablePath
-			mockPathError:          errors.New("path hint for Chromium is unreliable"), // Simulate the error GetBrowserExecutablePath returns for Chromium hint
-			expectError:            false, // prepareBrowser for chromium should still succeed
+			mockPathError:          errors.New("path hint for Chromium is unreliable"),                                  // Simulate the error GetBrowserExecutablePath returns for Chromium hint
+			expectError:            false,                                                                               // prepareBrowser for chromium should still succeed
 			expectedLogSubstr:      "Note: Could not determine a hint for Chromium executable path",
 		},
 		{

@@ -62,10 +62,10 @@ func init() {
 }
 
 // Getter functions for main package to access flag values
-func GetOutfile() string             { return outfile }
-func GetURLFile() string             { return urlFile }
-func GetMatchPatterns() []string     { return matchPatterns }
+func GetOutfile() string               { return outfile }
+func GetURLFile() string               { return urlFile }
+func GetMatchPatterns() []string       { return matchPatterns }
 func GetFollowMatchPatterns() []string { return followMatchPatterns }
-func GetPageLimit() int              { return pageLimit }
-func GetContentSelector() string     { return contentSelector }
-func GetWaitForNetworkIdle() bool    { return waitForNetworkIdle }
+func GetPageLimit() int                { return pageLimit }
+func GetContentSelector() string       { return contentSelector }
+func GetWaitForNetworkIdle() bool      { return waitForNetworkIdle }

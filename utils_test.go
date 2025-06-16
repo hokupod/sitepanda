@@ -58,8 +58,8 @@ func TestConstants(t *testing.T) {
 		if Version == "" {
 			t.Error("Version constant should not be empty")
 		}
-		if Version != "0.1.1" {
-			t.Errorf("Expected Version to be '0.1.1', got %q", Version)
+		if Version != "0.1.2" {
+			t.Errorf("Expected Version to be '0.1.2', got %q", Version)
 		}
 	})
 
@@ -85,10 +85,10 @@ func TestLoggerExists(t *testing.T) {
 	defer func() { logger = originalLogger }()
 
 	SetLoggerOutput(&buf)
-	
+
 	// This should not panic
 	logger.Print("test")
-	
+
 	if buf.Len() == 0 {
 		t.Error("Expected logger to write some output")
 	}

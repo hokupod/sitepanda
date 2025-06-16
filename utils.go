@@ -7,12 +7,12 @@ import (
 )
 
 const (
-	Version                   = "0.1.1"
+	Version                  = "0.1.2"
 	LightpandaNightlyVersion = "nightly"
 )
 
 // logger is a global logger instance
-var logger = log.New(os.Stdout, "", log.LstdFlags)
+var logger = log.New(os.Stderr, "", log.LstdFlags)
 
 // SetLoggerOutput sets the output destination for the logger
 func SetLoggerOutput(w io.Writer) {

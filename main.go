@@ -7,6 +7,6 @@ func main() {
 	cmd.InitHandler = HandleInitCommand
 	cmd.ScrapingHandler = HandleScraping
 	cmd.VersionFunc = func() string { return Version }
-	
+
 	cmd.Execute()
 }

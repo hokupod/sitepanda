@@ -85,7 +85,7 @@ func processHTML(pageURL string, rawHTML string, contentSelector string) (*PageD
 
 	article, err := readability.FromReader(strings.NewReader(htmlToProcess), parsedURL)
 	if err != nil {
-  // Log this case: If a content selector was used and readability fails, the snippet may be too small or unsuitable.
+		// Log this case: If a content selector was used and readability fails, the snippet may be too small or unsuitable.
 		if contentSelector != "" && htmlToProcess != rawHTML {
 			logger.Printf("Warning: failed to extract readable content from selector-reduced HTML for %s: %v. The selector might be too specific or the content unsuitable for readability.", pageURL, err)
 		} else if contentSelector == "" && htmlToProcess != rawHTML {

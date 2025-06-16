@@ -57,10 +57,10 @@ func TestGetAppSubdirectory(t *testing.T) {
 			expectedBase:   ".local/share/sitepanda/config",
 		},
 		{
-			name:           "macOS",
-			goos:           "darwin",
-			subPath:        []string{"cache"},
-			expectedBase:   "Library/Application Support/Sitepanda/cache",
+			name:         "macOS",
+			goos:         "darwin",
+			subPath:      []string{"cache"},
+			expectedBase: "Library/Application Support/Sitepanda/cache",
 		},
 		{
 			name:        "Unsupported OS (windows) for GetAppSubdirectory",
@@ -82,10 +82,10 @@ func TestGetAppSubdirectory(t *testing.T) {
 			expectedBase:   ".local/share/sitepanda/playwright_driver",
 		},
 		{
-			name:           "Sitepanda playwright_driver subdir macOS",
-			goos:           "darwin",
-			subPath:        []string{"playwright_driver"},
-			expectedBase:   "Library/Application Support/Sitepanda/playwright_driver",
+			name:         "Sitepanda playwright_driver subdir macOS",
+			goos:         "darwin",
+			subPath:      []string{"playwright_driver"},
+			expectedBase: "Library/Application Support/Sitepanda/playwright_driver",
 		},
 	}
 
@@ -167,8 +167,8 @@ func TestGetBrowserExecutablePath(t *testing.T) {
 		baseInstallDirs []string // For Chromium, the Playwright DriverDirectory
 		expectedSubPath string   // Expected path part relative to Sitepanda's app dir (for Lightpanda) or a hint structure (for Chromium)
 		expectError     bool
-		errorContains   string   // Substring expected in error message
-		targetOS        string   // OS this test case is primarily for (linux, darwin)
+		errorContains   string // Substring expected in error message
+		targetOS        string // OS this test case is primarily for (linux, darwin)
 	}{
 		// Lightpanda cases
 		{
@@ -248,13 +248,12 @@ func TestGetBrowserExecutablePath(t *testing.T) {
 
 				var expectedFullPath string
 				if tt.browserName == "lightpanda" {
- 				// For Lightpanda, path is relative to fakeHome (Sitepanda's app data structure)
+					// For Lightpanda, path is relative to fakeHome (Sitepanda's app data structure)
 					expectedFullPath = filepath.Join(fakeHome, tt.expectedSubPath)
 				} else if tt.browserName == "chromium" {
- 				// Chromium: success case is not expected with current implementation.
- 				expectedFullPath = "UNEXPECTED_SUCCESS_PATH_FOR_CHROMIUM"
+					// Chromium: success case is not expected with current implementation.
+					expectedFullPath = "UNEXPECTED_SUCCESS_PATH_FOR_CHROMIUM"
 				}
-
 
 				if path != expectedFullPath {
 					t.Errorf("GetBrowserExecutablePath() = %q, want %q", path, expectedFullPath)

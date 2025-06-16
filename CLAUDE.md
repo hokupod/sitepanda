@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Project Version**: v0.1.1 - Modern CLI architecture with Cobra framework
+**Project Version**: v0.1.2 - Modern CLI architecture with Cobra framework
 
 ## Common Development Commands
 
@@ -105,6 +105,7 @@ The crawler supports graceful shutdown with partial results preservation:
 
 - **XML-like text format** (default): Custom structured output with `<page>`, `<title>`, `<url>`, `<content>` tags
 - **JSON format**: Array of page objects (triggered by `.json` file extension in `--outfile`)
+- **Output streams**: Content goes to stdout, logs go to stderr (allows clean shell redirection)
 
 ## Testing Strategy
 
@@ -177,9 +178,16 @@ Browser executables are stored in platform-specific locations managed by `paths.
 
 ## Development Notes
 
+### v0.1.2 Changes
+- **Feature**: Added shell completion support with automatic Homebrew configuration
+- **Enhancement**: Improved shell redirection capabilities and output stream separation
+- **Documentation**: Updated examples for shell completion setup and usage
+
 ### v0.1.1 Changes
 - **Bug fix**: Fixed cancellation behavior to properly exit crawl loop and save partial results
 - **Improvement**: Added proper loop labeling for graceful shutdown handling
+- **Clarification**: Logger outputs to stderr (not stdout) to ensure clean shell redirection
+- **Documentation**: Added shell redirection examples and output separation explanation
 
 ### v0.1.0 Architectural Changes
 - **Major refactor**: Moved from flag-based to Cobra subcommand architecture

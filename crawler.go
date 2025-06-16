@@ -30,8 +30,8 @@ type Crawler struct {
 	silent              bool
 	waitForNetworkIdle  bool
 
-	isURLListMode       bool
-	initialURLs         []string
+	isURLListMode bool
+	initialURLs   []string
 
 	visited map[string]bool
 	results []PageData
