@@ -54,10 +54,10 @@ Sitepanda is a CLI web scraper written in Go that extracts readable content from
 ### Core Components
 
 - **crawler.go**: Core crawling logic with queue management, URL filtering, and page processing orchestration
-- **browser.go**: Browser abstraction layer supporting both Chromium (via Playwright) and Lightpanda (via CDP)
+- **browser.go**: Browser abstraction layer supporting Chromium (via Playwright, on Windows/macOS/Linux) and Lightpanda (via CDP, on macOS/Linux only).
 - **processor.go**: Content extraction pipeline using go-readability and HTML-to-Markdown conversion
-- **lightpanda.go**: Lightpanda-specific server management and process control
-- **paths.go**: Cross-platform path management for browser installations and data directories
+- **lightpanda.go**: Lightpanda-specific server management and process control (relevant for macOS/Linux).
+- **paths.go**: Cross-platform path management for browser installations and data directories (supports Windows, macOS, Linux).
 - **fetcher.go**: HTTP fetching utilities and URL normalization
 
 ### Handler Architecture
@@ -69,10 +69,10 @@ Sitepanda is a CLI web scraper written in Go that extracts readable content from
 ### Browser Architecture
 
 The tool supports two browser backends:
-- **Chromium**: Managed by Playwright, automatically downloaded and controlled via `playwright-go`
-- **Lightpanda**: External binary, downloaded and launched as a separate process, controlled via CDP
+- **Chromium**: Managed by Playwright, automatically downloaded and controlled via `playwright-go`. This is the default and recommended browser for all supported platforms (Windows, macOS, Linux).
+- **Lightpanda**: External binary, downloaded and launched as a separate process, controlled via CDP. Supported on macOS and Linux only. **Not supported on Windows.**
 
-The `browser.go` file provides a unified interface (`prepareBrowser`, `launchBrowserAndGetConnection`) that abstracts these differences.
+The `browser.go` file provides a unified interface (`prepareBrowser`, `launchBrowserAndGetConnection`) that abstracts these differences, though Lightpanda-related paths will error out on Windows within `init_handler.go`.
 
 ### Content Processing Pipeline
 
@@ -143,10 +143,22 @@ go test . -run TestCLI              # Integration tests
 ## Browser Management
 
 The `init` subcommand downloads and installs browser dependencies:
-- `sitepanda init` or `sitepanda init chromium` (default): Downloads Chromium via Playwright
-- `sitepanda init lightpanda`: Downloads Lightpanda binary to user data directory
+- `sitepanda init` or `sitepanda init chromium` (default): Downloads Chromium via Playwright. Works on Windows, macOS, and Linux.
+- `sitepanda init lightpanda`: Downloads Lightpanda binary to user data directory. This command is only functional on macOS and Linux. On Windows, it will produce an error message stating that Lightpanda is not supported.
 
-Browser executables are stored in platform-specific locations managed by `paths.go`.
+Browser executables and Playwright drivers are stored in platform-specific locations (Windows, macOS, Linux) managed by `paths.go`.
+
+## Platform Support
+
+Sitepanda officially supports the following platforms:
+- Windows (x86_64)
+- macOS (arm64, and likely x86_64 via Rosetta 2)
+- Linux (x86_64)
+
+**Browser Support by Platform:**
+- **Windows**: Chromium only.
+- **macOS**: Chromium (default), Lightpanda (optional).
+- **Linux**: Chromium (default), Lightpanda (optional).
 
 ## CLI Command Structure (v0.1.1)
 

@@ -24,6 +24,7 @@ builds:
     targets:
       - linux_amd64
       - darwin_arm64
+      - windows_amd64
 
 archives:
   - formats: [tar.gz]
