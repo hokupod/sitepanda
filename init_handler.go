@@ -24,10 +24,6 @@ func HandleInitCommand(browserToInstall string) {
 		lpInstallDir := filepath.Dir(lpExecutablePath)
 		logger.Printf("Lightpanda will be installed to: %s", lpExecutablePath)
 
-		if runtime.GOOS == "windows" {
-			logger.Fatalf("Lightpanda is not supported on Windows. Please use Chromium instead by running 'sitepanda init chromium'.")
-		}
-
 		var downloadURL string
 		var lpFilename string
 		switch runtime.GOOS {
@@ -45,10 +41,13 @@ func HandleInitCommand(browserToInstall string) {
 			} else {
 				logger.Fatalf("Unsupported architecture for Lightpanda on macOS: %s. Lightpanda is primarily available for darwin/arm64.", runtime.GOARCH)
 			}
+		case "windows":
+			logger.Fatalf("Lightpanda is not supported on Windows. Please use Chromium instead by running 'sitepanda init chromium'.")
 		default:
 			logger.Fatalf("Unsupported OS for Lightpanda: %s. Lightpanda can only be automatically installed on Linux (amd64) and macOS (arm64).", runtime.GOOS)
 		}
 
+		// This part will not be reached on Windows due to logger.Fatalf above.
 		logger.Printf("Downloading Lightpanda for %s/%s from %s...", runtime.GOOS, runtime.GOARCH, downloadURL)
 		resp, err := http.Get(downloadURL)
 		if err != nil {
