@@ -24,6 +24,10 @@ func HandleInitCommand(browserToInstall string) {
 		lpInstallDir := filepath.Dir(lpExecutablePath)
 		logger.Printf("Lightpanda will be installed to: %s", lpExecutablePath)
 
+		if runtime.GOOS == "windows" {
+			logger.Fatalf("Lightpanda is not supported on Windows. Please use Chromium instead by running 'sitepanda init chromium'.")
+		}
+
 		var downloadURL string
 		var lpFilename string
 		switch runtime.GOOS {

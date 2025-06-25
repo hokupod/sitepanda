@@ -38,8 +38,14 @@ func GetAppSubdirectory(subPath ...string) (string, error) {
 		}
 		baseDir = filepath.Join(homeDir, "Library", "Application Support")
 		appDirName = "Sitepanda"
+	case "windows":
+		userConfigDir, errUserConfig := os.UserConfigDir()
+		if errUserConfig != nil {
+			return "", fmt.Errorf("failed to get user config directory: %w", errUserConfig)
+		}
+		baseDir = userConfigDir
+		appDirName = "Sitepanda" // Consistent with macOS
 	default:
-
 		return "", fmt.Errorf("unsupported OS for general app subdirectory: %s. This function is for Sitepanda's own directories like 'bin' or 'playwright_driver'", runtime.GOOS)
 	}
 
