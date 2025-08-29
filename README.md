@@ -382,6 +382,14 @@ Sitepanda is licensed under the [MIT License](LICENSE).
 
 ## Development Status
 
+### v0.1.3 - Maintenance Release
+
+This release updates the version number and confirms Windows compatibility.
+
+#### Chore
+*   Bump version to 0.1.3
+*   Verified Windows compatibility and release configuration.
+
 ### v0.1.1, 0.1.2 - Bug Fix Release
 
 This release fixes the cancellation behavior and improves output handling.

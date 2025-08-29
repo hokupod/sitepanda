@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Project Version**: v0.1.2 - Modern CLI architecture with Cobra framework
+**Project Version**: v0.1.3 - Modern CLI architecture with Cobra framework
 
 ## Common Development Commands
 
