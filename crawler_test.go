@@ -159,6 +159,65 @@ func TestNormalizeURLtoString(t *testing.T) {
 	}
 }
 
+func TestFormatResultsAsJSONL(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       []PageData
+		wantJSONL   string
+		expectError bool
+	}{
+		{
+			name:      "empty results",
+			input:     []PageData{},
+			wantJSONL: "",
+		},
+		{
+			name: "single page",
+			input: []PageData{
+				{Title: "Page 1", URL: "http://example.com/1", Markdown: "Content 1"},
+			},
+			wantJSONL: `{"title":"Page 1","url":"http://example.com/1","content":"Content 1"}` + "\n",
+		},
+		{
+			name: "multiple pages",
+			input: []PageData{
+				{Title: "Page A", URL: "http://example.com/a", Markdown: "Content A"},
+				{Title: "Page B", URL: "http://example.com/b", Markdown: "## Content B\nWith newlines."},
+			},
+			wantJSONL: `{"title":"Page A","url":"http://example.com/a","content":"Content A"}` + "\n" +
+				`{"title":"Page B","url":"http://example.com/b","content":"## Content B\nWith newlines."}` + "\n",
+		},
+		{
+			name: "page with special characters in content",
+			input: []PageData{
+				{Title: "Special \"Chars\" Page", URL: "http://example.com/special", Markdown: "Content with <>&'\""},
+			},
+			wantJSONL: `{"title":"Special \"Chars\" Page","url":"http://example.com/special","content":"Content with \u003c\u003e\u0026'\""}` + "\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotJSONLBytes, err := formatResultsAsJSONL(tt.input)
+			if (err != nil) != tt.expectError {
+				t.Fatalf("formatResultsAsJSONL() error = %v, wantErr %v", err, tt.expectError)
+			}
+			if tt.expectError {
+				return
+			}
+
+			gotJSONL := string(gotJSONLBytes)
+			// Normalize newlines for comparison
+			normalizedWantJSONL := strings.ReplaceAll(tt.wantJSONL, "\r\n", "\n")
+			normalizedGotJSONL := strings.ReplaceAll(gotJSONL, "\r\n", "\n")
+
+			if normalizedGotJSONL != normalizedWantJSONL {
+				t.Errorf("formatResultsAsJSONL() gotJSONL =\n%s\nwantJSONL =\n%s", normalizedGotJSONL, normalizedWantJSONL)
+			}
+		})
+	}
+}
+
 func TestFormatResultsAsJSON(t *testing.T) {
 	tests := []struct {
 		name        string

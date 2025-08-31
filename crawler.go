@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -29,6 +30,7 @@ type Crawler struct {
 	outfile             string
 	silent              bool
 	waitForNetworkIdle  bool
+	outputFormat        string
 
 	isURLListMode bool
 	initialURLs   []string
@@ -92,6 +94,7 @@ func newCrawlerCommon(
 	outfile string,
 	silent bool,
 	waitForNetworkIdle bool,
+	outputFormat string,
 	rootContext context.Context,
 	rootCancelFunc context.CancelFunc,
 ) (*Crawler, error) {
@@ -167,6 +170,7 @@ func newCrawlerCommon(
 		outfile:             outfile,
 		silent:              silent,
 		waitForNetworkIdle:  waitForNetworkIdle,
+		outputFormat:        outputFormat,
 		visited:             visitedMap,
 		results:             make([]PageData, 0),
 		rootCtx:             rootContext,
@@ -192,6 +196,7 @@ func NewCrawlerForLightpanda(
 	outfile string,
 	silent bool,
 	waitForNetworkIdle bool,
+	outputFormat string,
 ) (*Crawler, error) {
 	parsedStartURL, compiledMatchPatterns, compiledFollowPatterns, err := parseCrawlerArgs(startURLStr, matchPatternsRaw, followMatchPatternsRaw)
 	if err != nil {
@@ -210,7 +215,7 @@ func NewCrawlerForLightpanda(
 	}
 	logger.Printf("Playwright successfully connected to Lightpanda at %s", wsURL)
 
-	return newCrawlerCommon(parsedStartURL, urlList, isListMode, browser, pageLimit, compiledMatchPatterns, compiledFollowPatterns, contentSelector, outfile, silent, waitForNetworkIdle, rootCtxForCrawler, rootCrawlerCancel)
+	return newCrawlerCommon(parsedStartURL, urlList, isListMode, browser, pageLimit, compiledMatchPatterns, compiledFollowPatterns, contentSelector, outfile, silent, waitForNetworkIdle, outputFormat, rootCtxForCrawler, rootCrawlerCancel)
 }
 
 func NewCrawlerForPlaywrightBrowser(
@@ -225,13 +230,14 @@ func NewCrawlerForPlaywrightBrowser(
 	outfile string,
 	silent bool,
 	waitForNetworkIdle bool,
+	outputFormat string,
 ) (*Crawler, error) {
 	parsedStartURL, compiledMatchPatterns, compiledFollowPatterns, err := parseCrawlerArgs(startURLStr, matchPatternsRaw, followMatchPatternsRaw)
 	if err != nil {
 		return nil, err
 	}
 	rootCtxForCrawler, rootCrawlerCancel := context.WithCancel(context.Background())
-	return newCrawlerCommon(parsedStartURL, urlList, isListMode, pwB, pageLimit, compiledMatchPatterns, compiledFollowPatterns, contentSelector, outfile, silent, waitForNetworkIdle, rootCtxForCrawler, rootCrawlerCancel)
+	return newCrawlerCommon(parsedStartURL, urlList, isListMode, pwB, pageLimit, compiledMatchPatterns, compiledFollowPatterns, contentSelector, outfile, silent, waitForNetworkIdle, outputFormat, rootCtxForCrawler, rootCrawlerCancel)
 }
 
 func (c *Crawler) Cancel() {
@@ -398,33 +404,41 @@ OuterCrawlLoop:
 	}
 
 	if len(c.results) > 0 {
-		if c.outfile != "" && strings.HasSuffix(strings.ToLower(c.outfile), ".json") {
-			jsonData, err := formatResultsAsJSON(c.results)
+		var outputData []byte
+		var err error
+
+		switch c.outputFormat {
+		case "json":
+			outputData, err = formatResultsAsJSON(c.results)
 			if err != nil {
 				logger.Printf("Error marshalling results to JSON: %v", err)
-			} else {
-				err := os.WriteFile(c.outfile, jsonData, 0644)
-				if err != nil {
-					logger.Printf("Error writing JSON to outfile %s: %v", c.outfile, err)
-				} else {
-					logger.Printf("Successfully wrote %d pages to %s in JSON format", len(c.results), c.outfile)
-				}
 			}
-		} else {
+		case "jsonl":
+			outputData, err = formatResultsAsJSONL(c.results)
+			if err != nil {
+				logger.Printf("Error marshalling results to JSONL: %v", err)
+			}
+		case "xml-like":
+			fallthrough
+		default:
 			var outputStrings []string
 			for _, pd := range c.results {
 				outputStrings = append(outputStrings, formatPageDataAsXML(&pd))
 			}
 			finalOutput := strings.Join(outputStrings, "\n\n")
+			outputData = []byte(finalOutput)
+		}
+
+		if err == nil {
 			if c.outfile != "" {
-				err := os.WriteFile(c.outfile, []byte(finalOutput), 0644)
+				err := os.WriteFile(c.outfile, outputData, 0644)
 				if err != nil {
 					logger.Printf("Error writing to outfile %s: %v", c.outfile, err)
 				} else {
-					logger.Printf("Successfully wrote %d pages to %s", len(c.results), c.outfile)
+					logger.Printf("Successfully wrote %d pages to %s in %s format", len(c.results), c.outfile, c.outputFormat)
 				}
 			} else {
-				fmt.Println(finalOutput)
+				fmt.Println(string(outputData))
 			}
 		}
 	} else {
@@ -567,4 +581,22 @@ func formatResultsAsJSON(results []PageData) ([]byte, error) {
 		})
 	}
 	return json.MarshalIndent(jsonOutputPages, "", "  ")
+}
+
+func formatResultsAsJSONL(results []PageData) ([]byte, error) {
+	var buffer bytes.Buffer
+	for _, pd := range results {
+		jsonOutputPage := JSONOutputPage{
+			Title:   pd.Title,
+			URL:     pd.URL,
+			Content: pd.Markdown,
+		}
+		jsonData, err := json.Marshal(jsonOutputPage)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode page to JSONL (URL: %s): %w", pd.URL, err)
+		}
+		buffer.Write(jsonData)
+		buffer.WriteString("\n")
+	}
+	return buffer.Bytes(), nil
 }

@@ -36,7 +36,7 @@ func TestCLIIntegration(t *testing.T) {
 			name:           "Version command",
 			args:           []string{"--version"},
 			expectError:    false,
-			expectedOutput: "0.1.3",
+			expectedOutput: "0.2.0",
 		},
 		{
 			name:           "Init help",
@@ -194,6 +194,47 @@ func TestEnvironmentVariables(t *testing.T) {
 			// The output should contain help text since we're using --help
 			if !strings.Contains(string(output), "Download and install") {
 				t.Errorf("Expected help output, got %q", string(output))
+			}
+		})
+	}
+}
+
+func TestScrapeOutputFormatFlag(t *testing.T) {
+	binaryPath := filepath.Join(os.TempDir(), "sitepanda-test")
+	if err := exec.Command("go", "build", "-o", binaryPath, ".").Run(); err != nil {
+		t.Fatalf("Failed to build binary for testing: %v", err)
+	}
+	defer os.Remove(binaryPath)
+
+	tests := []struct {
+		name        string
+		args        []string
+		expectedLog string
+	}{
+		{
+			name:        "Default format",
+			args:        []string{"scrape", "http://example.com"},
+			expectedLog: "Output Format: xml-like",
+		},
+		{
+			name:        "JSONL format flag",
+			args:        []string{"scrape", "--output-format", "jsonl", "http://example.com"},
+			expectedLog: "Output Format: jsonl",
+		},
+		{
+			name:        "JSON format flag short",
+			args:        []string{"scrape", "-f", "json", "http://example.com"},
+			expectedLog: "Output Format: json",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := exec.Command(binaryPath, tt.args...)
+			output, _ := cmd.CombinedOutput() // We ignore the error because the command is expected to fail
+
+			if !strings.Contains(string(output), tt.expectedLog) {
+				t.Errorf("Expected log to contain %q, got %q", tt.expectedLog, string(output))
 			}
 		})
 	}
