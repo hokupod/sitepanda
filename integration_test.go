@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Integration tests that run the actual binary
@@ -230,9 +232,13 @@ func TestScrapeOutputFormatFlag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := exec.Command(binaryPath, tt.args...)
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, binaryPath, tt.args...)
 			output, _ := cmd.CombinedOutput() // We ignore the error because the command is expected to fail
-
+			if ctx.Err() == context.DeadlineExceeded {
+				t.Fatalf("command timed out: %v", tt.args)
+			}
 			if !strings.Contains(string(output), tt.expectedLog) {
 				t.Errorf("Expected log to contain %q, got %q", tt.expectedLog, string(output))
 			}
