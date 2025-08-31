@@ -21,6 +21,13 @@ type JSONOutputPage struct {
 	Content string `json:"content"`
 }
 
+// CrawlResult holds the summary of a crawl operation.
+type CrawlResult struct {
+	PagesSaved int
+	OutputFile string
+	StopReason string
+}
+
 type Crawler struct {
 	startURL            *url.URL
 	pageLimit           int
@@ -246,7 +253,12 @@ func (c *Crawler) Cancel() {
 	}
 }
 
-func (c *Crawler) Crawl() error {
+func (c *Crawler) Crawl() (CrawlResult, error) {
+	result := CrawlResult{
+		OutputFile: c.outfile,
+		StopReason: "Completed", // Default stop reason
+	}
+
 	defer func() {
 		if c.page != nil && !c.page.IsClosed() {
 			logger.Println("Crawler: closing Playwright page...")
@@ -283,7 +295,7 @@ func (c *Crawler) Crawl() error {
 	} else {
 		normStartURLForQueue, err := normalizeURLtoString(c.startURL.String())
 		if err != nil {
-			return fmt.Errorf("failed to normalize the initial start URL %s: %w", c.startURL.String(), err)
+			return result, fmt.Errorf("failed to normalize the initial start URL %s: %w", c.startURL.String(), err)
 		}
 		queue = append(queue, normStartURLForQueue)
 		c.visited[normStartURLForQueue] = true
@@ -292,7 +304,8 @@ func (c *Crawler) Crawl() error {
 
 	if len(queue) == 0 {
 		logger.Println("Initial crawl queue is empty. Nothing to process.")
-		return nil
+		result.StopReason = "No URLs to process"
+		return result, nil
 	}
 
 	logger.Printf("Starting crawl. Initial queue size: %d. Start URL for context: %s", len(queue), c.startURL.String())
@@ -300,8 +313,9 @@ func (c *Crawler) Crawl() error {
 OuterCrawlLoop:
 	for len(queue) > 0 {
 		if c.rootCtx.Err() != nil {
-			logger.Printf("Root context canceled. Stopping crawl and saving partial results. Error: %v", c.rootCtx.Err())
-			break // Don't return error, continue to save partial results
+			logger.Printf("Root context canceled. Stopping crawl. Error: %v", c.rootCtx.Err())
+			result.StopReason = "Cancelled by user"
+			break
 		}
 
 		currentURLStr := queue[0]
@@ -309,6 +323,7 @@ OuterCrawlLoop:
 
 		if c.pageLimit > 0 && len(c.results) >= c.pageLimit {
 			logger.Printf("Page limit (%d) for saved content reached. Stopping crawl.", c.pageLimit)
+			result.StopReason = fmt.Sprintf("Page limit reached (%d)", c.pageLimit)
 			break
 		}
 
@@ -326,8 +341,9 @@ OuterCrawlLoop:
 
 		for attempt := 0; attempt <= maxRetries; attempt++ {
 			if c.rootCtx.Err() != nil {
-				logger.Printf("Root context canceled before fetching %s, attempt %d. Stopping crawl to save partial results.", currentURLStr, attempt+1)
+				logger.Printf("Root context canceled before fetching %s, attempt %d. Stopping crawl.", currentURLStr, attempt+1)
 				fetchErr = c.rootCtx.Err()
+				result.StopReason = "Cancelled by user"
 				break OuterCrawlLoop
 			}
 			htmlContent, fetchErr = fetchPageHTML(c.page, c.rootCtx, currentURLStr, c.waitForNetworkIdle)
@@ -357,13 +373,16 @@ OuterCrawlLoop:
 
 			if isCriticalError {
 				if c.rootCtx.Err() != nil {
-					logger.Printf("Root context done (%v), stopping crawl to save partial results. Original fetch error for %s: %v", c.rootCtx.Err(), currentURLStr, fetchErr)
+					logger.Printf("Root context done (%v), stopping crawl. Original fetch error for %s: %v", c.rootCtx.Err(), currentURLStr, fetchErr)
+					result.StopReason = "Cancelled by user"
 				} else if c.pwBrowser != nil && !c.pwBrowser.IsConnected() {
-					logger.Printf("Playwright browser disconnected. Stopping crawl to save partial results. Original fetch error for %s: %v", currentURLStr, fetchErr)
+					logger.Printf("Playwright browser disconnected. Stopping crawl. Original fetch error for %s: %v", currentURLStr, fetchErr)
+					result.StopReason = "Browser connection lost"
 				} else {
-					logger.Printf("Critical error encountered while fetching %s: %v. Stopping crawl to save partial results.", currentURLStr, fetchErr)
+					logger.Printf("Critical error encountered while fetching %s: %v. Stopping crawl.", currentURLStr, fetchErr)
+					result.StopReason = "Critical fetch error"
 				}
-				break // Don't return error, break to save partial results
+				break
 			}
 			logger.Printf("Skipping page %s due to non-critical fetch error after retries: %v", currentURLStr, fetchErr)
 			continue
@@ -385,7 +404,8 @@ OuterCrawlLoop:
 				for _, normalizedLinkStr := range links {
 					if _, visited := c.visited[normalizedLinkStr]; !visited {
 						if c.rootCtx.Err() != nil {
-							logger.Printf("Root context canceled. Not adding more links to queue. Will save partial results.")
+							logger.Printf("Root context canceled. Not adding more links to queue.")
+							result.StopReason = "Cancelled by user"
 							break
 						}
 						c.visited[normalizedLinkStr] = true
@@ -397,11 +417,7 @@ OuterCrawlLoop:
 		}
 	}
 
-	if c.rootCtx.Err() != nil {
-		logger.Printf("Crawl stopped due to cancellation. Total pages visited: %d. Partial results to save: %d", len(c.visited), len(c.results))
-	} else {
-		logger.Printf("Crawl finished. Total pages visited (dequeued for processing): %d. Total results saved: %d", len(c.visited), len(c.results))
-	}
+	result.PagesSaved = len(c.results)
 
 	if len(c.results) > 0 {
 		var outputData []byte
@@ -434,17 +450,14 @@ OuterCrawlLoop:
 				err := os.WriteFile(c.outfile, outputData, 0644)
 				if err != nil {
 					logger.Printf("Error writing to outfile %s: %v", c.outfile, err)
-				} else {
-					logger.Printf("Successfully wrote %d pages to %s in %s format", len(c.results), c.outfile, c.outputFormat)
 				}
 			} else {
 				fmt.Println(string(outputData))
 			}
 		}
-	} else {
-		logger.Println("No results to output.")
 	}
-	return nil
+
+	return result, nil
 }
 
 func (c *Crawler) shouldProcessContent(pageURL *url.URL) bool {

@@ -71,7 +71,7 @@ func getFreePort() (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
-func launchBrowserAndGetConnection(browserName string, lightpandaExecutablePath string, baseInstallDirForChromium string) (
+func launchBrowserAndGetConnection(browserName string, lightpandaExecutablePath string, baseInstallDirForChromium string, verboseBrowser bool) (
 	cmd *exec.Cmd, wsURL string, pwInstance *playwright.Playwright, pwBrowser playwright.Browser, lpStdout *bytes.Buffer, lpStderr *bytes.Buffer, err error) {
 
 	switch browserName {
@@ -113,7 +113,7 @@ func launchBrowserAndGetConnection(browserName string, lightpandaExecutablePath 
 	case "chromium":
 		logger.Println("Launching Chromium via playwright-go...")
 		// If PLAYWRIGHT_DRIVER_PATH is set, respect it; otherwise, use the managed directory
-		runOpts := playwright.RunOptions{DriverDirectory: baseInstallDirForChromium, Verbose: true}
+		runOpts := playwright.RunOptions{DriverDirectory: baseInstallDirForChromium, Verbose: verboseBrowser}
 		pwRunInstance, errRun := playwright.Run(&runOpts)
 		if errRun != nil {
 			return nil, "", nil, nil, nil, nil, fmt.Errorf("could not start playwright for Chromium (DriverDirectory: %s): %w", baseInstallDirForChromium, errRun)

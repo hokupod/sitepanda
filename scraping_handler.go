@@ -89,7 +89,9 @@ func HandleScraping(args []string) {
 	var pwBrowser playwright.Browser
 	var lpStdout, lpStderr *bytes.Buffer
 
-	lightpandaCmd, wsURL, pwInstance, pwBrowser, lpStdout, lpStderr, err = launchBrowserAndGetConnection(browserName, browserExecutablePath, playwrightDriverDir)
+	verboseBrowser := cmd.GetVerboseBrowser()
+
+	lightpandaCmd, wsURL, pwInstance, pwBrowser, lpStdout, lpStderr, err = launchBrowserAndGetConnection(browserName, browserExecutablePath, playwrightDriverDir, verboseBrowser)
 	if err != nil {
 		logger.Fatalf("Failed to launch %s or connect: %v.", browserName, err)
 	}
@@ -153,6 +155,7 @@ func HandleScraping(args []string) {
 	logger.Printf("  Content Selector: %s", contentSelector)
 	logger.Printf("  Silent: %t", cmd.GetSilent())
 	logger.Printf("  Wait For Network Idle: %t", waitForNetworkIdle)
+	logger.Printf("  Verbose Browser Logs: %t", verboseBrowser)
 
 	var crawler *Crawler
 	var crawlerErr error
@@ -184,9 +187,11 @@ func HandleScraping(args []string) {
 		crawler.Cancel()
 	}()
 
-	crawlErr := crawler.Crawl()
+	crawlResult, crawlErr := crawler.Crawl()
+
+	// This block handles fatal errors from *before* the crawl loop started.
 	if crawlErr != nil {
-		logger.Printf("Crawling failed: %v", crawlErr)
+		logger.Printf("Crawling failed before starting: %v", crawlErr)
 		if lpStdout != nil && lpStdout.Len() > 0 {
 			logger.Printf("--- Browser stdout (on Crawl failure) ---\n%s", lpStdout.String())
 		}
@@ -194,6 +199,21 @@ func HandleScraping(args []string) {
 			logger.Printf("--- Browser stderr (on Crawl failure) ---\n%s", lpStderr.String())
 		}
 	}
+
+	// Always print the summary report at the end.
+	logger.Printf("\n--------------------\n  Scraping Summary\n--------------------")
+	logger.Printf("  Status: %s", crawlResult.StopReason)
+	logger.Printf("  Pages Saved: %d", crawlResult.PagesSaved)
+	if crawlResult.OutputFile != "" {
+		logger.Printf("  Output File: %s", crawlResult.OutputFile)
+	} else {
+		if crawlResult.PagesSaved > 0 {
+			logger.Printf("  Output: stdout")
+		} else {
+			logger.Printf("  Output: No pages saved.")
+		}
+	}
+	logger.Printf("--------------------")
 
 	logger.Println("Sitepanda finished.")
 }

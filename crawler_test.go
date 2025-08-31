@@ -2,22 +2,12 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/gobwas/glob"
 )
-
-func TestMain(m *testing.M) {
-	originalLoggerOutput := logger.Writer()
-	logger.SetOutput(io.Discard)
-	exitCode := m.Run()
-	logger.SetOutput(originalLoggerOutput)
-	os.Exit(exitCode)
-}
 
 func compileTestGlobPatterns(rawPatterns []string) []glob.Glob {
 	if rawPatterns == nil {

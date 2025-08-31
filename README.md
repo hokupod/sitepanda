@@ -94,6 +94,7 @@ These flags work with all commands:
 *   `--limit <number>`: Stop processing/fetching new pages once this many pages have had their content successfully saved (0 for no limit). If the process is interrupted (Ctrl+C), partial results will be saved.
 *   `--content-selector <selector>`: Specify a CSS selector (e.g., `.article-body`) to identify the main content area of a page. If provided, `go-readability` will process only the content of the first matching element; the default HTML pre-filtering (of script, img, etc.) is skipped in this case. If the selector is provided but does not match any elements on the page, Sitepanda will fall back to processing the original, full HTML content without applying the default pre-filtering.
 *   `--wait-for-network-idle, -wni`: Wait for network to be idle instead of just `load` (default) when fetching pages. This can be useful for pages that load content dynamically after the initial `load` event.
+*   `--verbose-browser`: Display verbose browser logs from the underlying engine (e.g., Chromium) in the console. By default, these logs are suppressed to keep the output clean.
 
 ### Environment Variables
 
@@ -182,6 +183,7 @@ sitepanda scrape https://example.com > output.txt 2>/dev/null
 *   The `--silent` flag suppresses all log output.
 *   Errors encountered during page fetching or processing are logged. Sitepanda attempts to continue processing other pages if the error is page-specific, but will halt the crawl if critical browser connection errors occur or if the required browser is not installed (guiding the user to run `sitepanda init [browser]`).
 *   **Graceful Shutdown**: When the process receives an interrupt signal (Ctrl+C/SIGINT) or termination signal (SIGTERM), Sitepanda will stop crawling new pages and save all successfully scraped content up to that point. This ensures that partial results are not lost during long-running scrapes.
+*   **Summary Report**: At the end of every run, a summary report is printed to `stderr` indicating the status (e.g., completed, cancelled), the number of pages saved, and the output location (file or stdout).
 *   **Output Separation**: Scraped content is written to **stdout** (standard output), while logs are written to **stderr**. This allows for clean shell redirection of scraped content without log messages.
 
 ## Current Status and Known Issues
