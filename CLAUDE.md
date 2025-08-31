@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Project Version**: v0.2.0 - Explicit output format control
+**Project Version**: v0.3.0 - Summary report and verbose browser logs
 
 ## Common Development Commands
 
@@ -98,6 +98,15 @@ The crawler supports graceful shutdown with partial results preservation:
 
 - **Summary Report**: To improve clarity, the `Crawl()` method in `crawler.go` no longer returns just an `error`. It now returns a `(CrawlResult, error)`. The `CrawlResult` struct contains a summary of the operation (pages saved, output file, reason for stopping). The `scraping_handler.go` is responsible for using this struct to print a formatted, user-friendly summary report at the end of every execution. This ensures the user always knows the outcome.
 - **Verbose Browser Logs**: A new `--verbose-browser` flag has been added to the `scrape` command. This flag controls the verbosity of the underlying Playwright driver. By default, it is `false`, which suppresses noisy logs from Chromium to keep the console clean. The `launchBrowserAndGetConnection` function in `browser.go` passes this flag to the `playwright.RunOptions`.
+
+Canonical `StopReason` values used by `CrawlResult`:
+- `"Completed"`
+- `"Cancelled by user"`
+- `"No URLs to process"`
+- `"Page limit reached (<n>)"`
+- `"Browser connection lost"`
+- `"Critical fetch error"`
+- `"Failed to start"`
 
 ### URL Management
 

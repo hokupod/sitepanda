@@ -192,6 +192,9 @@ func HandleScraping(args []string) {
 	// This block handles fatal errors from *before* the crawl loop started.
 	if crawlErr != nil {
 		logger.Printf("Crawling failed before starting: %v", crawlErr)
+		if crawlResult.StopReason == "" || crawlResult.StopReason == "Completed" {
+			crawlResult.StopReason = "Failed to start"
+		}
 		if lpStdout != nil && lpStdout.Len() > 0 {
 			logger.Printf("--- Browser stdout (on Crawl failure) ---\n%s", lpStdout.String())
 		}
@@ -205,7 +208,11 @@ func HandleScraping(args []string) {
 	logger.Printf("  Status: %s", crawlResult.StopReason)
 	logger.Printf("  Pages Saved: %d", crawlResult.PagesSaved)
 	if crawlResult.OutputFile != "" {
-		logger.Printf("  Output File: %s", crawlResult.OutputFile)
+		if crawlResult.OutputFileError != nil {
+			logger.Printf("  Output File: FAILED to write to %s (%v)", crawlResult.OutputFile, crawlResult.OutputFileError)
+		} else {
+			logger.Printf("  Output File: %s", crawlResult.OutputFile)
+		}
 	} else {
 		if crawlResult.PagesSaved > 0 {
 			logger.Printf("  Output: stdout")

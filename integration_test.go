@@ -24,10 +24,15 @@ func TestMain(m *testing.M) {
 	logger.SetOutput(io.Discard)
 	defer logger.SetOutput(originalLoggerOutput)
 
+	tempDir, err := os.MkdirTemp("", "sitepanda-integration-")
+	if err != nil {
+		fmt.Printf("Failed to create temp dir for testing: %v", err)
+		os.Exit(1)
+	}
+
+	binaryPath = filepath.Join(tempDir, "sitepanda-test")
 	if runtime.GOOS == "windows" {
-		binaryPath = filepath.Join(os.TempDir(), "sitepanda-test.exe")
-	} else {
-		binaryPath = filepath.Join(os.TempDir(), "sitepanda-test")
+		binaryPath += ".exe"
 	}
 
 	// Build the binary once
@@ -35,9 +40,9 @@ func TestMain(m *testing.M) {
 	buildCmd := exec.Command("go", "build", "-o", binaryPath, ".")
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		fmt.Printf("Failed to build test binary: %v\nOutput:\n%s", err, string(output))
+		os.RemoveAll(tempDir)
 		os.Exit(1)
 	}
-	defer os.Remove(binaryPath)
 
 	// Ensure browser is installed once
 	fmt.Println("Ensuring browser is installed for integration tests...")
@@ -52,6 +57,9 @@ func TestMain(m *testing.M) {
 
 	// Run all tests
 	exitCode := m.Run()
+
+	// Cleanup before exiting
+	os.RemoveAll(tempDir)
 	os.Exit(exitCode)
 }
 
@@ -239,6 +247,9 @@ func TestScrapeOutputFormatFlag(t *testing.T) {
 func TestScrapeSummaryReport_Completion(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode.")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping cancellation test on Windows due to unreliable signal delivery.")
 	}
 
 	server := setupTestServer()

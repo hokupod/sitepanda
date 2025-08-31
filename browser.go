@@ -96,9 +96,13 @@ func launchBrowserAndGetConnection(browserName string, lightpandaExecutablePath 
 		logger.Printf("Launched Lightpanda server (PID: %d) on %s:%d", lightpandaCmd.Process.Pid, host, port)
 		logger.Printf("Lightpanda WebSocket debugger URL: %s", actualWsURL)
 
-		// Wait a moment for Lightpanda server to initialize before Playwright tries to connect
-		logger.Println("Waiting a moment for Lightpanda server to initialize...")
-		time.Sleep(3 * time.Second)
+		// Wait for Lightpanda server to accept connections
+		logger.Printf("Waiting for Lightpanda server at %s to become ready...", actualWsURL)
+		if errWait := waitForPort(host, port, 10*time.Second); errWait != nil {
+			_ = lightpandaCmd.Process.Kill()
+			_ = lightpandaCmd.Wait()
+			return lightpandaCmd, "", nil, nil, stdoutBuf, stderrBuf, fmt.Errorf("Lightpanda did not become ready in time: %w", errWait)
+		}
 
 		// Playwright instance is needed to connect even for Lightpanda
 		pwRunInstance, errRun := playwright.Run()
@@ -133,4 +137,19 @@ func launchBrowserAndGetConnection(browserName string, lightpandaExecutablePath 
 	default:
 		return nil, "", nil, nil, nil, nil, fmt.Errorf("unsupported browser for launch: %s", browserName)
 	}
+}
+
+// waitForPort waits for a TCP port on a given host to become available for connection.
+func waitForPort(host string, port int, timeout time.Duration) error {
+	addr := fmt.Sprintf("%s:%d", host, port)
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	return fmt.Errorf("timeout waiting for %s", addr)
 }

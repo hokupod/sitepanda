@@ -23,9 +23,10 @@ type JSONOutputPage struct {
 
 // CrawlResult holds the summary of a crawl operation.
 type CrawlResult struct {
-	PagesSaved int
-	OutputFile string
-	StopReason string
+	PagesSaved      int
+	OutputFile      string
+	StopReason      string
+	OutputFileError error
 }
 
 type Crawler struct {
@@ -295,6 +296,7 @@ func (c *Crawler) Crawl() (CrawlResult, error) {
 	} else {
 		normStartURLForQueue, err := normalizeURLtoString(c.startURL.String())
 		if err != nil {
+			result.StopReason = "Failed to start"
 			return result, fmt.Errorf("failed to normalize the initial start URL %s: %w", c.startURL.String(), err)
 		}
 		queue = append(queue, normStartURLForQueue)
@@ -450,6 +452,7 @@ OuterCrawlLoop:
 				err := os.WriteFile(c.outfile, outputData, 0644)
 				if err != nil {
 					logger.Printf("Error writing to outfile %s: %v", c.outfile, err)
+					result.OutputFileError = err
 				}
 			} else {
 				fmt.Println(string(outputData))
@@ -565,7 +568,12 @@ func normalizeURLtoString(urlString string) (string, error) {
 			}
 		}
 	}
-	if parsed.Scheme == "" && parsed.Host == "" {
+	// Handle scheme-less host+path like "example.com/foo"
+	if parsed.Scheme == "" && parsed.Host == "" && parsed.Path != "" &&
+		!strings.HasPrefix(trimmedURLString, "/") && strings.Contains(parsed.Path, ".") {
+		if withScheme, err2 := url.Parse("http://" + trimmedURLString); err2 == nil {
+			parsed = withScheme
+		}
 	}
 
 	parsed.Fragment = ""
