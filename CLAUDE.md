@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Project Version**: v0.1.3 - Modern CLI architecture with Cobra framework
+**Project Version**: v0.2.0 - Explicit output format control
 
 ## Common Development Commands
 
@@ -103,9 +103,11 @@ The crawler supports graceful shutdown with partial results preservation:
 
 ### Output Formats
 
-- **XML-like text format** (default): Custom structured output with `<page>`, `<title>`, `<url>`, `<content>` tags
-- **JSON format**: Array of page objects (triggered by `.json` file extension in `--outfile`)
-- **Output streams**: Content goes to stdout, logs go to stderr (allows clean shell redirection)
+- **`xml-like`** (default): Custom structured output with `<page>`, `<title>`, `<url>`, `<content>` tags.
+- **`json`**: A single JSON array containing all page objects.
+- **`jsonl`**: Newline-delimited JSON objects, one for each page.
+- The format is now explicitly controlled by the `--output-format` flag in the `scrape` command, not by file extension.
+- **Output streams**: Content goes to stdout, logs go to stderr (allows clean shell redirection).
 
 ## Testing Strategy
 

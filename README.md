@@ -17,8 +17,7 @@ Sitepanda is a command-line interface (CLI) tool written in Go, now with support
 *   If no specific `--content-selector` is provided, Sitepanda pre-filters the HTML by removing `<script>`, `<style>`, `<link>`, `<img>`, and `<video>` tags before attempting content extraction.
 *   Extracts the main "readable" content from each page using `go-readability`.
 *   Converts the extracted HTML content to Markdown.
-*   Outputs the scraped data (title, URL, Markdown content) in an XML-like text format by default.
-*   If the `--outfile` path ends with `.json`, output is in JSON format (an array of page objects).
+*   Outputs the scraped data (title, URL, Markdown content) in multiple formats, controllable via the `--output-format` flag. Supported formats: `xml-like` (default), `json`, and `jsonl`.
 *   Provides options to filter pages by URL patterns (`--match`) and to stop crawling once a specified number of pages have had their content saved (`--limit`).
 *   Allows specifying URL patterns (`--follow-match`) to restrict which discovered links are added to the crawl queue, preventing crawls from expanding into unwanted areas (e.g., other user profiles on a social media site). This is not applicable when using `--url-file`.
 *   Allows specifying a CSS selector (`--content-selector`) to target the main content area of a page for more precise extraction (this bypasses the default pre-filtering).
@@ -88,7 +87,8 @@ These flags work with all commands:
 ### Scrape Command Flags
 
 *   `--url-file <path>`: Path to a file containing a list of URLs to process (one URL per line). If specified, Sitepanda will process each URL from this file individually. This option overrides the `<url>` argument. When `--url-file` is used, the `--follow-match` option is ignored as crawling beyond the provided URLs is not applicable.
-*   `-o, --outfile <path>`: Write the fetched site to a text file. If the path ends with `.json`, the output will be in JSON format. Otherwise, it defaults to an XML-like text format.
+*   `-o, --outfile <path>`: Write the fetched site to a text file. The format is determined by the `--output-format` flag.
+*   `-f, --output-format <format>`: Specifies the output format. Supported values are `xml-like` (default), `json`, and `jsonl`.
 *   `-m, --match <pattern>`: Only extract content from matched pages (glob pattern, can be specified multiple times). Non-matching pages on the same domain are still crawled for links until the `--limit` is reached (this crawling behavior does not apply when `--url-file` is used).
 *   `--follow-match <pattern>`: Only add links matching this glob pattern to the crawl queue (can be specified multiple times). This helps control the scope of the crawl. For example, on a social media site, you might use `--follow-match "/username/**"` to only crawl links related to a specific user. This option is ignored if `--url-file` is used.
 *   `--limit <number>`: Stop processing/fetching new pages once this many pages have had their content successfully saved (0 for no limit). If the process is interrupted (Ctrl+C), partial results will be saved.
@@ -115,10 +115,10 @@ These flags work with all commands:
 
 ## Output Format
 
-Sitepanda supports two output formats:
+Sitepanda supports multiple output formats, controlled by the `--output-format` flag.
 
-1.  **XML-like Text (Default):**
-    If `--outfile` is not specified (output to stdout) or if the `--outfile` path does not end with `.json`.
+1.  **`xml-like` (Default):**
+    This is the default format if `--output-format` is not specified.
 
     ```text
     <page>
@@ -133,8 +133,8 @@ Sitepanda supports two output formats:
     ...
     ```
 
-2.  **JSON:**
-    If the `--outfile` path ends with `.json`. The output is a JSON array of page objects.
+2.  **`json`:**
+    A single JSON array containing all page objects. Useful for standard JSON parsing.
 
     ```json
     [
@@ -145,6 +145,15 @@ Sitepanda supports two output formats:
       },
       ...
     ]
+    ```
+
+3.  **`jsonl` (JSON Lines):**
+    Each page object is a separate, newline-delimited JSON object. This format is useful for streaming results, as each line can be parsed independently.
+
+    ```json
+    {"title":"Page Title 1","url":"http://example.com/page-1","content":"Content for page 1..."}
+    {"title":"Page Title 2","url":"http://example.com/page-2","content":"Content for page 2..."}
+    ...
     ```
 
 ### Shell Redirection
@@ -286,7 +295,10 @@ sitepanda scrape https://example.com
 sitepanda scrape --outfile output.txt https://example.com
 
 # Scrape with JSON output
-sitepanda scrape --outfile output.json https://example.com
+sitepanda scrape --output-format json --outfile output.json https://example.com
+
+# Scrape with JSON Lines output
+sitepanda scrape --output-format jsonl --outfile output.jsonl https://example.com
 ```
 
 ### Advanced Scraping Options
@@ -381,6 +393,15 @@ go test . -run TestProcessHTML      # Test specific functions
 Sitepanda is licensed under the [MIT License](LICENSE).
 
 ## Development Status
+
+### v0.2.0 - Feature Release
+
+This release introduces explicit output format control.
+
+#### ✨ New Features
+*   **Output Format Flag**: Added `--output-format` (or `-f`) flag to `scrape` command to specify output format.
+*   **JSONL Format**: Added support for `jsonl` (JSON Lines) as an output format.
+*   **Explicit Formatting**: The output format is now explicitly controlled by the new flag, not inferred from the output file extension.
 
 ### v0.1.3 - Maintenance Release
 
