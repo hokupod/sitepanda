@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"runtime"
 	"time"
 
 	"github.com/playwright-community/playwright-go"
@@ -41,16 +42,11 @@ func prepareBrowser(browserName string, baseInstallDirForChromium string) (execu
 
 	case "chromium":
 		// For Chromium, Playwright manages the executable. Assume `playwright.Install` has worked.
-		// `GetBrowserExecutablePath` for Chromium may return a hint or error if path detection is complex.
-		// If Playwright's `Launch` can find the executable, a strict path is not required here.
 		logger.Printf("For Chromium, Playwright is expected to find the executable. Path check in prepareBrowser is primarily for confirmation if `GetBrowserExecutablePath` is implemented for Chromium.")
-		// Call to check if path hint logic is working as expected
 		_, err = GetBrowserExecutablePath(browserName, baseInstallDirForChromium)
 		if err != nil {
 			logger.Printf("Note: Could not determine a hint for Chromium executable path via GetBrowserExecutablePath: %v. This is often okay as Playwright handles it.", err)
 		}
-		// No specific executable path is returned since Playwright auto-detects it.
-		// No specific cleanup is needed for Chromium from this function.
 		return "", func() {}, nil
 	default:
 		return "", func() {}, fmt.Errorf("unsupported browser for prepare: %s", browserName)
@@ -104,7 +100,6 @@ func launchBrowserAndGetConnection(browserName string, lightpandaExecutablePath 
 			return lightpandaCmd, "", nil, nil, stdoutBuf, stderrBuf, fmt.Errorf("Lightpanda did not become ready in time: %w", errWait)
 		}
 
-		// Playwright instance is needed to connect even for Lightpanda
 		pwRunInstance, errRun := playwright.Run()
 		if errRun != nil {
 			_ = lightpandaCmd.Process.Kill()
@@ -116,19 +111,32 @@ func launchBrowserAndGetConnection(browserName string, lightpandaExecutablePath 
 
 	case "chromium":
 		logger.Println("Launching Chromium via playwright-go...")
-		// If PLAYWRIGHT_DRIVER_PATH is set, respect it; otherwise, use the managed directory
-		runOpts := playwright.RunOptions{DriverDirectory: baseInstallDirForChromium, Verbose: verboseBrowser}
+
+		effectiveVerbose := verboseBrowser
+		if runtime.GOOS == "darwin" {
+			// This is a workaround for a platform-specific inconsistency in playwright-go.
+			// On Linux (and in CI), the default logging is quiet, and `Verbose: true` enables logs.
+			// On macOS, a user reported that the default logging is verbose, and the flag appears
+			// to have an inverted effect. This platform-specific check reconciles the two
+			// behaviors so that the `--verbose-browser` flag works as expected by the user
+			// on both platforms.
+			//
+			// For macOS ("darwin"):
+			// --verbose-browser=false (default) -> effectiveVerbose=true -> Suppress logs
+			// --verbose-browser=true            -> effectiveVerbose=false -> Allow logs
+			effectiveVerbose = !verboseBrowser
+		}
+
+		runOpts := playwright.RunOptions{DriverDirectory: baseInstallDirForChromium, Verbose: effectiveVerbose}
 		pwRunInstance, errRun := playwright.Run(&runOpts)
 		if errRun != nil {
 			return nil, "", nil, nil, nil, nil, fmt.Errorf("could not start playwright for Chromium (DriverDirectory: %s): %w", baseInstallDirForChromium, errRun)
 		}
 
-		// Launch Chromium. Playwright will find the executable in DriverDirectory.
 		browser, errLaunch := pwRunInstance.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
 			Headless: playwright.Bool(true),
 		})
 		if errLaunch != nil {
-			// Cleanup Playwright if browser launch fails
 			_ = pwRunInstance.Stop()
 			return nil, "", pwRunInstance, nil, nil, nil, fmt.Errorf("could not launch Chromium: %w", errLaunch)
 		}

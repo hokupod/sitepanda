@@ -248,9 +248,6 @@ func TestScrapeSummaryReport_Completion(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode.")
 	}
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping cancellation test on Windows due to unreliable signal delivery.")
-	}
 
 	server := setupTestServer()
 	defer server.Close()
@@ -281,6 +278,9 @@ func TestScrapeSummaryReport_Completion(t *testing.T) {
 func TestScrapeSummaryReport_Cancellation(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode.")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping cancellation test on Windows due to unreliable signal delivery.")
 	}
 
 	server := setupTestServer()

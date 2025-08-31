@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -24,7 +25,7 @@ func HandleScraping(args []string) {
 	var targetURLsForCrawler []string
 	isURLListMode := false
 
-	// Handle URL arguments and --url-file logic (from original main.go lines 150-184)
+	// Handle URL arguments and --url-file logic
 	urlFile := cmd.GetURLFile()
 	if urlFile != "" {
 		if len(args) > 0 {
@@ -66,9 +67,6 @@ func HandleScraping(args []string) {
 		logger.Printf("Error: Invalid browser specified: %s. Supported: 'lightpanda', 'chromium'. Check command-line options or SITEPANDA_BROWSER environment variable.", browserName)
 		os.Exit(1)
 	}
-
-	// Early log for testing
-	logger.Printf("Output Format: %s", cmd.GetOutputFormat())
 
 	logger.Printf("Sitepanda v%s starting with browser: %s", Version, browserName)
 
@@ -155,7 +153,7 @@ func HandleScraping(args []string) {
 	logger.Printf("  Content Selector: %s", contentSelector)
 	logger.Printf("  Silent: %t", cmd.GetSilent())
 	logger.Printf("  Wait For Network Idle: %t", waitForNetworkIdle)
-	logger.Printf("  Verbose Browser Logs: %t", verboseBrowser)
+	logger.Printf("  Verbose Browser Logs: %t", cmd.GetVerboseBrowser())
 
 	var crawler *Crawler
 	var crawlerErr error
@@ -204,23 +202,28 @@ func HandleScraping(args []string) {
 	}
 
 	// Always print the summary report at the end.
-	logger.Printf("\n--------------------\n  Scraping Summary\n--------------------")
-	logger.Printf("  Status: %s", crawlResult.StopReason)
-	logger.Printf("  Pages Saved: %d", crawlResult.PagesSaved)
+	var summary strings.Builder
+	summary.WriteString("\n--------------------\n")
+	summary.WriteString("  Scraping Summary\n")
+	summary.WriteString("--------------------\n")
+	summary.WriteString(fmt.Sprintf("  Status: %s\n", crawlResult.StopReason))
+	summary.WriteString(fmt.Sprintf("  Pages Saved: %d\n", crawlResult.PagesSaved))
+
 	if crawlResult.OutputFile != "" {
 		if crawlResult.OutputFileError != nil {
-			logger.Printf("  Output File: FAILED to write to %s (%v)", crawlResult.OutputFile, crawlResult.OutputFileError)
+			summary.WriteString(fmt.Sprintf("  Output File: FAILED to write to %s (%v)\n", crawlResult.OutputFile, crawlResult.OutputFileError))
 		} else {
-			logger.Printf("  Output File: %s", crawlResult.OutputFile)
+			summary.WriteString(fmt.Sprintf("  Output File: %s\n", crawlResult.OutputFile))
 		}
 	} else {
 		if crawlResult.PagesSaved > 0 {
-			logger.Printf("  Output: stdout")
+			summary.WriteString("  Output: stdout\n")
 		} else {
-			logger.Printf("  Output: No pages saved.")
+			summary.WriteString("  Output: No pages saved.\n")
 		}
 	}
-	logger.Printf("--------------------")
+	summary.WriteString("--------------------")
+	logger.Print(summary.String())
 
 	logger.Println("Sitepanda finished.")
 }
