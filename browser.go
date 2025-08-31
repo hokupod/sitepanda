@@ -119,6 +119,7 @@ func launchBrowserAndGetConnection(browserName string, lightpandaExecutablePath 
 
 		browser, errLaunch := pwRunInstance.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
 			Headless: playwright.Bool(true),
+			Args:     []string{"--disable-gpu"},
 		})
 		if errLaunch != nil {
 			_ = pwRunInstance.Stop()
