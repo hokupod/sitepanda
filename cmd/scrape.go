@@ -16,6 +16,7 @@ var (
 	pageLimit           int
 	contentSelector     string
 	waitForNetworkIdle  bool
+	outputFormat        string
 )
 
 // ScrapingHandler is a function that handles the scraping functionality
@@ -51,7 +52,8 @@ func init() {
 	rootCmd.AddCommand(scrapeCmd)
 
 	// Scraping flags
-	scrapeCmd.Flags().StringVarP(&outfile, "outfile", "o", "", "Write the fetched site to a text file. If path ends with .json, output is JSON")
+	scrapeCmd.Flags().StringVarP(&outfile, "outfile", "o", "", "Write the fetched site to a text file.")
+	scrapeCmd.Flags().StringVarP(&outputFormat, "output-format", "f", "xml-like", "Output format (xml-like, json, jsonl)")
 	scrapeCmd.Flags().StringVar(&urlFile, "url-file", "", "Path to a file containing URLs to process (one per line). Overrides <url> argument")
 	scrapeCmd.Flags().StringSliceVarP(&matchPatterns, "match", "m", []string{}, "Only extract content from matched pages (glob pattern, can be specified multiple times)")
 	scrapeCmd.Flags().StringSliceVar(&followMatchPatterns, "follow-match", []string{}, "Only add links matching this glob pattern to the crawl queue (can be specified multiple times)")
@@ -69,3 +71,4 @@ func GetFollowMatchPatterns() []string { return followMatchPatterns }
 func GetPageLimit() int                { return pageLimit }
 func GetContentSelector() string       { return contentSelector }
 func GetWaitForNetworkIdle() bool      { return waitForNetworkIdle }
+func GetOutputFormat() string          { return outputFormat }

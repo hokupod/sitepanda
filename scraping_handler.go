@@ -67,6 +67,9 @@ func HandleScraping(args []string) {
 		os.Exit(1)
 	}
 
+	// Early log for testing
+	logger.Printf("Output Format: %s", cmd.GetOutputFormat())
+
 	logger.Printf("Sitepanda v%s starting with browser: %s", Version, browserName)
 
 	playwrightDriverDir, err := GetAppSubdirectory("playwright_driver")
@@ -122,6 +125,7 @@ func HandleScraping(args []string) {
 	pageLimit := cmd.GetPageLimit()
 	contentSelector := cmd.GetContentSelector()
 	waitForNetworkIdle := cmd.GetWaitForNetworkIdle()
+	outputFormat := cmd.GetOutputFormat()
 
 	logger.Printf("Configuration:")
 	logger.Printf("  Start URL (or first from list): %s", startURLForCrawler)
@@ -138,6 +142,7 @@ func HandleScraping(args []string) {
 		logger.Printf("  Chromium managed by Playwright in: %s", playwrightDriverDir)
 	}
 	logger.Printf("  Outfile: %s", outfile)
+	logger.Printf("  Output Format: %s", outputFormat)
 	logger.Printf("  Match Patterns (for content saving): %v", matchPatterns)
 	if isURLListMode {
 		logger.Printf("  Follow Match Patterns (for crawling): %v (ignored in URL list mode)", followMatchPatterns)
@@ -153,9 +158,9 @@ func HandleScraping(args []string) {
 	var crawlerErr error
 
 	if browserName == "lightpanda" {
-		crawler, crawlerErr = NewCrawlerForLightpanda(startURLForCrawler, targetURLsForCrawler, isURLListMode, wsURL, pwInstance, pageLimit, matchPatterns, followMatchPatterns, contentSelector, outfile, cmd.GetSilent(), waitForNetworkIdle)
+		crawler, crawlerErr = NewCrawlerForLightpanda(startURLForCrawler, targetURLsForCrawler, isURLListMode, wsURL, pwInstance, pageLimit, matchPatterns, followMatchPatterns, contentSelector, outfile, cmd.GetSilent(), waitForNetworkIdle, outputFormat)
 	} else if browserName == "chromium" {
-		crawler, crawlerErr = NewCrawlerForPlaywrightBrowser(startURLForCrawler, targetURLsForCrawler, isURLListMode, pwBrowser, pageLimit, matchPatterns, followMatchPatterns, contentSelector, outfile, cmd.GetSilent(), waitForNetworkIdle)
+		crawler, crawlerErr = NewCrawlerForPlaywrightBrowser(startURLForCrawler, targetURLsForCrawler, isURLListMode, pwBrowser, pageLimit, matchPatterns, followMatchPatterns, contentSelector, outfile, cmd.GetSilent(), waitForNetworkIdle, outputFormat)
 	} else {
 		logger.Fatalf("Unsupported browser for crawler creation: %s", browserName)
 	}
