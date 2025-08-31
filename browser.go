@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"runtime"
 	"time"
 
 	"github.com/playwright-community/playwright-go"
@@ -112,22 +111,7 @@ func launchBrowserAndGetConnection(browserName string, lightpandaExecutablePath 
 	case "chromium":
 		logger.Println("Launching Chromium via playwright-go...")
 
-		effectiveVerbose := verboseBrowser
-		if runtime.GOOS == "darwin" {
-			// This is a workaround for a platform-specific inconsistency in playwright-go.
-			// On Linux (and in CI), the default logging is quiet, and `Verbose: true` enables logs.
-			// On macOS, a user reported that the default logging is verbose, and the flag appears
-			// to have an inverted effect. This platform-specific check reconciles the two
-			// behaviors so that the `--verbose-browser` flag works as expected by the user
-			// on both platforms.
-			//
-			// For macOS ("darwin"):
-			// --verbose-browser=false (default) -> effectiveVerbose=true -> Suppress logs
-			// --verbose-browser=true            -> effectiveVerbose=false -> Allow logs
-			effectiveVerbose = !verboseBrowser
-		}
-
-		runOpts := playwright.RunOptions{DriverDirectory: baseInstallDirForChromium, Verbose: effectiveVerbose}
+		runOpts := playwright.RunOptions{DriverDirectory: baseInstallDirForChromium, Verbose: verboseBrowser}
 		pwRunInstance, errRun := playwright.Run(&runOpts)
 		if errRun != nil {
 			return nil, "", nil, nil, nil, nil, fmt.Errorf("could not start playwright for Chromium (DriverDirectory: %s): %w", baseInstallDirForChromium, errRun)
