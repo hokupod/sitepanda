@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -24,7 +25,7 @@ func HandleScraping(args []string) {
 	var targetURLsForCrawler []string
 	isURLListMode := false
 
-	// Handle URL arguments and --url-file logic (from original main.go lines 150-184)
+	// Handle URL arguments and --url-file logic
 	urlFile := cmd.GetURLFile()
 	if urlFile != "" {
 		if len(args) > 0 {
@@ -67,9 +68,6 @@ func HandleScraping(args []string) {
 		os.Exit(1)
 	}
 
-	// Early log for testing
-	logger.Printf("Output Format: %s", cmd.GetOutputFormat())
-
 	logger.Printf("Sitepanda v%s starting with browser: %s", Version, browserName)
 
 	playwrightDriverDir, err := GetAppSubdirectory("playwright_driver")
@@ -89,7 +87,9 @@ func HandleScraping(args []string) {
 	var pwBrowser playwright.Browser
 	var lpStdout, lpStderr *bytes.Buffer
 
-	lightpandaCmd, wsURL, pwInstance, pwBrowser, lpStdout, lpStderr, err = launchBrowserAndGetConnection(browserName, browserExecutablePath, playwrightDriverDir)
+	verboseBrowser := cmd.GetVerboseBrowser()
+
+	lightpandaCmd, wsURL, pwInstance, pwBrowser, lpStdout, lpStderr, err = launchBrowserAndGetConnection(browserName, browserExecutablePath, playwrightDriverDir, verboseBrowser)
 	if err != nil {
 		logger.Fatalf("Failed to launch %s or connect: %v.", browserName, err)
 	}
@@ -153,6 +153,7 @@ func HandleScraping(args []string) {
 	logger.Printf("  Content Selector: %s", contentSelector)
 	logger.Printf("  Silent: %t", cmd.GetSilent())
 	logger.Printf("  Wait For Network Idle: %t", waitForNetworkIdle)
+	logger.Printf("  Verbose Browser Logs: %t", cmd.GetVerboseBrowser())
 
 	var crawler *Crawler
 	var crawlerErr error
@@ -184,9 +185,14 @@ func HandleScraping(args []string) {
 		crawler.Cancel()
 	}()
 
-	crawlErr := crawler.Crawl()
+	crawlResult, crawlErr := crawler.Crawl()
+
+	// This block handles fatal errors from *before* the crawl loop started.
 	if crawlErr != nil {
-		logger.Printf("Crawling failed: %v", crawlErr)
+		logger.Printf("Crawling failed before starting: %v", crawlErr)
+		if crawlResult.StopReason == "" || crawlResult.StopReason == "Completed" {
+			crawlResult.StopReason = "Failed to start"
+		}
 		if lpStdout != nil && lpStdout.Len() > 0 {
 			logger.Printf("--- Browser stdout (on Crawl failure) ---\n%s", lpStdout.String())
 		}
@@ -194,6 +200,30 @@ func HandleScraping(args []string) {
 			logger.Printf("--- Browser stderr (on Crawl failure) ---\n%s", lpStderr.String())
 		}
 	}
+
+	// Always print the summary report at the end.
+	var summary strings.Builder
+	summary.WriteString("\n--------------------\n")
+	summary.WriteString("  Scraping Summary\n")
+	summary.WriteString("--------------------\n")
+	summary.WriteString(fmt.Sprintf("  Status: %s\n", crawlResult.StopReason))
+	summary.WriteString(fmt.Sprintf("  Pages Saved: %d\n", crawlResult.PagesSaved))
+
+	if crawlResult.OutputFile != "" {
+		if crawlResult.OutputFileError != nil {
+			summary.WriteString(fmt.Sprintf("  Output File: FAILED to write to %s (%v)\n", crawlResult.OutputFile, crawlResult.OutputFileError))
+		} else {
+			summary.WriteString(fmt.Sprintf("  Output File: %s\n", crawlResult.OutputFile))
+		}
+	} else {
+		if crawlResult.PagesSaved > 0 {
+			summary.WriteString("  Output: stdout\n")
+		} else {
+			summary.WriteString("  Output: No pages saved.\n")
+		}
+	}
+	summary.WriteString("--------------------")
+	logger.Print(summary.String())
 
 	logger.Println("Sitepanda finished.")
 }

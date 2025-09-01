@@ -17,6 +17,7 @@ var (
 	contentSelector     string
 	waitForNetworkIdle  bool
 	outputFormat        string
+	verboseBrowser      bool
 )
 
 // ScrapingHandler is a function that handles the scraping functionality
@@ -61,6 +62,7 @@ func init() {
 	scrapeCmd.Flags().StringVar(&contentSelector, "content-selector", "", "Specify a CSS selector to target the main content area")
 	scrapeCmd.Flags().BoolVarP(&waitForNetworkIdle, "wait-for-network-idle", "w", false, "Wait for network to be idle instead of just load when fetching pages")
 	scrapeCmd.Flags().BoolVar(&waitForNetworkIdle, "wni", false, "Shorthand for --wait-for-network-idle")
+	scrapeCmd.Flags().BoolVar(&verboseBrowser, "verbose-browser", false, "Display verbose browser logs (e.g., from Chromium) in the console")
 }
 
 // Getter functions for main package to access flag values
@@ -72,3 +74,4 @@ func GetPageLimit() int                { return pageLimit }
 func GetContentSelector() string       { return contentSelector }
 func GetWaitForNetworkIdle() bool      { return waitForNetworkIdle }
 func GetOutputFormat() string          { return outputFormat }
+func GetVerboseBrowser() bool          { return verboseBrowser }

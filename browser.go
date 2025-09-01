@@ -41,16 +41,11 @@ func prepareBrowser(browserName string, baseInstallDirForChromium string) (execu
 
 	case "chromium":
 		// For Chromium, Playwright manages the executable. Assume `playwright.Install` has worked.
-		// `GetBrowserExecutablePath` for Chromium may return a hint or error if path detection is complex.
-		// If Playwright's `Launch` can find the executable, a strict path is not required here.
 		logger.Printf("For Chromium, Playwright is expected to find the executable. Path check in prepareBrowser is primarily for confirmation if `GetBrowserExecutablePath` is implemented for Chromium.")
-		// Call to check if path hint logic is working as expected
 		_, err = GetBrowserExecutablePath(browserName, baseInstallDirForChromium)
 		if err != nil {
 			logger.Printf("Note: Could not determine a hint for Chromium executable path via GetBrowserExecutablePath: %v. This is often okay as Playwright handles it.", err)
 		}
-		// No specific executable path is returned since Playwright auto-detects it.
-		// No specific cleanup is needed for Chromium from this function.
 		return "", func() {}, nil
 	default:
 		return "", func() {}, fmt.Errorf("unsupported browser for prepare: %s", browserName)
@@ -71,7 +66,7 @@ func getFreePort() (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
-func launchBrowserAndGetConnection(browserName string, lightpandaExecutablePath string, baseInstallDirForChromium string) (
+func launchBrowserAndGetConnection(browserName string, lightpandaExecutablePath string, baseInstallDirForChromium string, verboseBrowser bool) (
 	cmd *exec.Cmd, wsURL string, pwInstance *playwright.Playwright, pwBrowser playwright.Browser, lpStdout *bytes.Buffer, lpStderr *bytes.Buffer, err error) {
 
 	switch browserName {
@@ -96,11 +91,14 @@ func launchBrowserAndGetConnection(browserName string, lightpandaExecutablePath 
 		logger.Printf("Launched Lightpanda server (PID: %d) on %s:%d", lightpandaCmd.Process.Pid, host, port)
 		logger.Printf("Lightpanda WebSocket debugger URL: %s", actualWsURL)
 
-		// Wait a moment for Lightpanda server to initialize before Playwright tries to connect
-		logger.Println("Waiting a moment for Lightpanda server to initialize...")
-		time.Sleep(3 * time.Second)
+		// Wait for Lightpanda server to accept connections
+		logger.Printf("Waiting for Lightpanda server at %s to become ready...", actualWsURL)
+		if errWait := waitForPort(host, port, 10*time.Second); errWait != nil {
+			_ = lightpandaCmd.Process.Kill()
+			_ = lightpandaCmd.Wait()
+			return lightpandaCmd, "", nil, nil, stdoutBuf, stderrBuf, fmt.Errorf("Lightpanda did not become ready in time: %w", errWait)
+		}
 
-		// Playwright instance is needed to connect even for Lightpanda
 		pwRunInstance, errRun := playwright.Run()
 		if errRun != nil {
 			_ = lightpandaCmd.Process.Kill()
@@ -112,19 +110,18 @@ func launchBrowserAndGetConnection(browserName string, lightpandaExecutablePath 
 
 	case "chromium":
 		logger.Println("Launching Chromium via playwright-go...")
-		// If PLAYWRIGHT_DRIVER_PATH is set, respect it; otherwise, use the managed directory
-		runOpts := playwright.RunOptions{DriverDirectory: baseInstallDirForChromium, Verbose: true}
+
+		runOpts := playwright.RunOptions{DriverDirectory: baseInstallDirForChromium, Verbose: verboseBrowser}
 		pwRunInstance, errRun := playwright.Run(&runOpts)
 		if errRun != nil {
 			return nil, "", nil, nil, nil, nil, fmt.Errorf("could not start playwright for Chromium (DriverDirectory: %s): %w", baseInstallDirForChromium, errRun)
 		}
 
-		// Launch Chromium. Playwright will find the executable in DriverDirectory.
 		browser, errLaunch := pwRunInstance.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
 			Headless: playwright.Bool(true),
+			Args:     []string{"--disable-gpu"},
 		})
 		if errLaunch != nil {
-			// Cleanup Playwright if browser launch fails
 			_ = pwRunInstance.Stop()
 			return nil, "", pwRunInstance, nil, nil, nil, fmt.Errorf("could not launch Chromium: %w", errLaunch)
 		}
@@ -133,4 +130,19 @@ func launchBrowserAndGetConnection(browserName string, lightpandaExecutablePath 
 	default:
 		return nil, "", nil, nil, nil, nil, fmt.Errorf("unsupported browser for launch: %s", browserName)
 	}
+}
+
+// waitForPort waits for a TCP port on a given host to become available for connection.
+func waitForPort(host string, port int, timeout time.Duration) error {
+	addr := fmt.Sprintf("%s:%d", host, port)
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	return fmt.Errorf("timeout waiting for %s", addr)
 }
