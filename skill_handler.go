@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,14 +11,19 @@ import (
 
 // HandleSkillInstall handles the interactive installation of the Sitepanda skill
 func HandleSkillInstall() error {
-	reader := bufio.NewReader(os.Stdin)
+	return installSkill(os.Stdin, os.Stdout, os.Getenv, os.UserHomeDir)
+}
 
-	fmt.Println("Which AI coding tool do you want to install the Sitepanda skill for?")
-	fmt.Println()
-	fmt.Println("1) OpenAI Codex")
-	fmt.Println("2) Claude Code")
-	fmt.Println()
-	fmt.Print("Enter your choice (1 or 2): ")
+// installSkill contains the core logic for installing the skill, separated for testability
+func installSkill(input io.Reader, output io.Writer, getEnv func(string) string, getHomeDir func() (string, error)) error {
+	reader := bufio.NewReader(input)
+
+	fmt.Fprintln(output, "Which AI coding tool do you want to install the Sitepanda skill for?")
+	fmt.Fprintln(output)
+	fmt.Fprintln(output, "1) OpenAI Codex")
+	fmt.Fprintln(output, "2) Claude Code")
+	fmt.Fprintln(output)
+	fmt.Fprint(output, "Enter your choice (1 or 2): ")
 
 	choiceStr, err := reader.ReadString('\n')
 	if err != nil {
@@ -32,10 +38,16 @@ func HandleSkillInstall() error {
 	case "1":
 		toolName = "OpenAI Codex"
 		// Check CODEX_HOME environment variable
-		if codexHome := os.Getenv("CODEX_HOME"); codexHome != "" {
+		if codexHome := getEnv("CODEX_HOME"); codexHome != "" {
+			// Validate that CODEX_HOME is not a system directory
+			cleanPath := filepath.Clean(codexHome)
+			if cleanPath == "/" || cleanPath == "/etc" || cleanPath == "/usr" ||
+				cleanPath == "/bin" || cleanPath == "/sbin" || cleanPath == "/var" {
+				return fmt.Errorf("CODEX_HOME points to a system directory: %s", cleanPath)
+			}
 			installPath = filepath.Join(codexHome, "skills", "sitepanda")
 		} else {
-			homeDir, err := os.UserHomeDir()
+			homeDir, err := getHomeDir()
 			if err != nil {
 				return fmt.Errorf("failed to get user home directory: %w", err)
 			}
@@ -43,7 +55,7 @@ func HandleSkillInstall() error {
 		}
 	case "2":
 		toolName = "Claude Code"
-		homeDir, err := os.UserHomeDir()
+		homeDir, err := getHomeDir()
 		if err != nil {
 			return fmt.Errorf("failed to get user home directory: %w", err)
 		}
@@ -54,15 +66,15 @@ func HandleSkillInstall() error {
 
 	// Check if directory already exists
 	if _, err := os.Stat(installPath); err == nil {
-		fmt.Printf("Warning: The directory %s already exists.\n", installPath)
-		fmt.Print("Do you want to overwrite it? (y/N): ")
+		fmt.Fprintf(output, "Warning: The directory %s already exists.\n", installPath)
+		fmt.Fprint(output, "Do you want to overwrite SKILL.md in this directory? (y/N): ")
 		overwriteStr, err := reader.ReadString('\n')
 		if err != nil {
 			return fmt.Errorf("failed to read input: %w", err)
 		}
 		overwriteStr = strings.TrimSpace(strings.ToLower(overwriteStr))
 		if overwriteStr != "y" && overwriteStr != "yes" {
-			fmt.Println("Installation cancelled.")
+			fmt.Fprintln(output, "Installation cancelled.")
 			return nil
 		}
 	}
@@ -78,9 +90,9 @@ func HandleSkillInstall() error {
 		return fmt.Errorf("failed to write SKILL.md to %s: %w", skillFilePath, err)
 	}
 
-	fmt.Printf("✔ Sitepanda skill installed for %s\n", toolName)
-	fmt.Printf("  Path: %s\n\n", installPath)
-	fmt.Printf("Restart %s to load the new skill.\n", toolName)
+	fmt.Fprintf(output, "✔ Sitepanda skill installed for %s\n", toolName)
+	fmt.Fprintf(output, "  Path: %s\n\n", installPath)
+	fmt.Fprintf(output, "Restart %s to load the new skill.\n", toolName)
 
 	return nil
 }
