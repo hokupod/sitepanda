@@ -82,26 +82,22 @@ func TestInstallSkill(t *testing.T) {
 		},
 		{
 			name:  "Install with Overwrite (Yes)",
-			input: "1\n",
+			input: "1\ny\n",
 			env:   nil,
 			setup: func() {
 				path := filepath.Join(mockHomeDir, ".codex", "skills", "sitepanda")
 				os.MkdirAll(path, 0755)
 			},
-			// Input needs to include 'y' for overwrite confirmation
-			// But wait, the first prompt consumes "1\n", then it checks existence, then asks for overwrite
-			// So input should be "1\ny\n"
+			expectedOutput: []string{
+				"Do you want to overwrite SKILL.md in this directory?",
+				"Sitepanda skill installed for OpenAI Codex",
+			},
+			expectedPath: filepath.Join(mockHomeDir, ".codex", "skills", "sitepanda"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Special handling for overwrite test case which needs modified input
-			inputStr := tt.input
-			if tt.name == "Install with Overwrite (Yes)" {
-				inputStr = "1\ny\n"
-			}
-
 			// Clean up previous runs if necessary (though tempDir helps isolate)
 			// But for overwrite test, we need to setup
 			if tt.setup != nil {
@@ -120,7 +116,7 @@ func TestInstallSkill(t *testing.T) {
 				return ""
 			}
 
-			input := bytes.NewBufferString(inputStr)
+			input := bytes.NewBufferString(tt.input)
 			output := new(bytes.Buffer)
 
 			err := installSkill(input, output, mockEnv, getMockHome)
@@ -145,7 +141,7 @@ func TestInstallSkill(t *testing.T) {
 
 				if tt.expectedPath != "" {
 					if _, err := os.Stat(tt.expectedPath); os.IsNotExist(err) {
-						t.Errorf("Expected directory %s to verify existence, but it does not exist", tt.expectedPath)
+						t.Errorf("Expected directory %s to exist, but it does not exist", tt.expectedPath)
 					}
 					skillFile := filepath.Join(tt.expectedPath, "SKILL.md")
 					if _, err := os.Stat(skillFile); os.IsNotExist(err) {
