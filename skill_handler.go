@@ -111,7 +111,7 @@ description: >
 1. When the user provides a URL or asks for website content, use Sitepanda to scrape the page.
 2. Execute the following command:
 
-   sitepanda scrape <URL> --silent
+   sitepanda scrape <URL> --silent --limit 1
 
 3. Capture the output, which is returned in Markdown format.
 4. Read and analyze the extracted content.
