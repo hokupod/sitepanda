@@ -109,14 +109,15 @@ description: >
 ## Instructions
 
 1. When the user provides a URL or asks for website content, use Sitepanda to scrape the page.
-2. Execute the following command:
+2. By default, use the following command to scrape a single page:
 
    sitepanda scrape <URL> --silent --limit 1
 
-3. Capture the output, which is returned in Markdown format.
-4. Read and analyze the extracted content.
-5. Respond to the user using only the relevant information from the page.
-6. If the content is long, summarize or extract only the necessary sections.
+3. If you need to perform recursive scraping (following links), you **must** ask the user for confirmation before starting, as it may take a long time.
+4. Capture the output, which is returned in Markdown format.
+5. Read and analyze the extracted content.
+6. Respond to the user using only the relevant information from the page.
+7. If the content is long, summarize or extract only the necessary sections.
 
 ## Examples
 
