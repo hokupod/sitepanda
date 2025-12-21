@@ -94,6 +94,31 @@ func TestInstallSkill(t *testing.T) {
 			},
 			expectedPath: filepath.Join(mockHomeDir, ".codex", "skills", "sitepanda"),
 		},
+		{
+			name:  "Install to Custom Path",
+			input: "3\n" + filepath.Join(tempDir, "custom", "path") + "\n",
+			env:   nil,
+			expectedOutput: []string{
+				"Enter the installation directory path:",
+				"Sitepanda skill installed for Custom Tool",
+			},
+			expectedPath: filepath.Join(tempDir, "custom", "path"),
+		},
+		{
+			name:  "Install to Custom Path (With Tilde Expansion)",
+			input: "3\n~/custom/tilde/path\n",
+			env:   nil,
+			expectedOutput: []string{
+				"Sitepanda skill installed for Custom Tool",
+			},
+			expectedPath: filepath.Join(mockHomeDir, "custom", "tilde", "path"),
+		},
+		{
+			name:  "Install to Custom Path (Invalid - System Directory)",
+			input: "3\n/etc\n",
+			env:   nil,
+			expectedError: "installation path points to a system directory: /etc",
+		},
 	}
 
 	for _, tt := range tests {

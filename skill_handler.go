@@ -22,8 +22,9 @@ func installSkill(input io.Reader, output io.Writer, getEnv func(string) string,
 	fmt.Fprintln(output)
 	fmt.Fprintln(output, "1) OpenAI Codex")
 	fmt.Fprintln(output, "2) Claude Code")
+	fmt.Fprintln(output, "3) Other (Custom Path)")
 	fmt.Fprintln(output)
-	fmt.Fprint(output, "Enter your choice (1 or 2): ")
+	fmt.Fprint(output, "Enter your choice (1, 2 or 3): ")
 
 	choiceStr, err := reader.ReadString('\n')
 	if err != nil {
@@ -60,6 +61,34 @@ func installSkill(input io.Reader, output io.Writer, getEnv func(string) string,
 			return fmt.Errorf("failed to get user home directory: %w", err)
 		}
 		installPath = filepath.Join(homeDir, ".claude", "skills", "sitepanda")
+	case "3":
+		toolName = "Custom Tool"
+		fmt.Fprint(output, "Enter the installation directory path: ")
+		customPath, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("failed to read input: %w", err)
+		}
+		customPath = strings.TrimSpace(customPath)
+		if customPath == "" {
+			return fmt.Errorf("installation directory path cannot be empty")
+		}
+
+		// Expand '~' to user home directory
+		if strings.HasPrefix(customPath, "~/") {
+			homeDir, err := getHomeDir()
+			if err != nil {
+				return fmt.Errorf("failed to get user home directory: %w", err)
+			}
+			customPath = filepath.Join(homeDir, customPath[2:])
+		}
+
+		// Validate that custom path is not a system directory
+		cleanPath := filepath.Clean(customPath)
+		if cleanPath == "/" || cleanPath == "/etc" || cleanPath == "/usr" ||
+			cleanPath == "/bin" || cleanPath == "/sbin" || cleanPath == "/var" {
+			return fmt.Errorf("installation path points to a system directory: %s", cleanPath)
+		}
+		installPath = customPath
 	default:
 		return fmt.Errorf("invalid choice: %s", choiceStr)
 	}
