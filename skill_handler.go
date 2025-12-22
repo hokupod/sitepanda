@@ -53,11 +53,19 @@ func installSkill(input io.Reader, output io.Writer, getEnv func(string) string,
 		}
 	case "2":
 		toolName = "Claude Code"
-		homeDir, err := getHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to get user home directory: %w", err)
+		// Check CLAUDE_HOME environment variable
+		if claudeHome := getEnv("CLAUDE_HOME"); claudeHome != "" {
+			if err := validateSystemPath(claudeHome); err != nil {
+				return fmt.Errorf("CLAUDE_HOME %w", err)
+			}
+			installPath = filepath.Join(claudeHome, "skills", "sitepanda")
+		} else {
+			homeDir, err := getHomeDir()
+			if err != nil {
+				return fmt.Errorf("failed to get user home directory: %w", err)
+			}
+			installPath = filepath.Join(homeDir, ".claude", "skills", "sitepanda")
 		}
-		installPath = filepath.Join(homeDir, ".claude", "skills", "sitepanda")
 	case "3":
 		toolName = "Custom Tool"
 		fmt.Fprint(output, "Enter the installation directory path: ")
@@ -71,7 +79,10 @@ func installSkill(input io.Reader, output io.Writer, getEnv func(string) string,
 		}
 
 		// Expand '~' to user home directory if it's the first character
-		if customPath == "~" || strings.HasPrefix(customPath, "~"+string(os.PathSeparator)) {
+		// Handle both ~/. (normalized to ~ by shell usually, but here we treat raw input)
+		// and simple ~
+		// Also handle ~/ with both forward and backslash for robustness
+		if customPath == "~" || strings.HasPrefix(customPath, "~/") || strings.HasPrefix(customPath, "~\\") {
 			homeDir, err := getHomeDir()
 			if err != nil {
 				return fmt.Errorf("failed to get user home directory: %w", err)
@@ -79,6 +90,7 @@ func installSkill(input io.Reader, output io.Writer, getEnv func(string) string,
 			if customPath == "~" {
 				customPath = homeDir
 			} else {
+				// Remove the ~ and the separator (2 chars) and join with homeDir
 				customPath = filepath.Join(homeDir, customPath[2:])
 			}
 		}
@@ -135,19 +147,24 @@ func validateSystemPath(path string) error {
 	}
 
 	for _, restricted := range restrictedPaths {
-		if cleanPath == restricted {
+		if cleanPath == restricted || strings.HasPrefix(cleanPath, restricted+string(os.PathSeparator)) {
 			return fmt.Errorf("points to a system directory: %s", cleanPath)
 		}
 	}
 
 	// Basic Windows system path check
-	// Note: accurate windows system path check requires runtime.GOOS == "windows" and
-	// env var lookup, but simplistic check helps catch obvious ones cross-platform
+	// Check if path starts with common Windows system paths (case-insensitive)
 	lowerPath := strings.ToLower(cleanPath)
-	if strings.HasPrefix(lowerPath, "c:\\windows") ||
-	   strings.HasPrefix(lowerPath, "c:\\program files") ||
-	   strings.HasPrefix(lowerPath, "c:\\program files (x86)") {
-		return fmt.Errorf("points to a system directory: %s", cleanPath)
+	winRestricted := []string{
+		"c:\\windows",
+		"c:\\program files",
+		"c:\\program files (x86)",
+	}
+
+	for _, restricted := range winRestricted {
+		if lowerPath == restricted || strings.HasPrefix(lowerPath, restricted+"\\") {
+			return fmt.Errorf("points to a system directory: %s", cleanPath)
+		}
 	}
 
 	return nil

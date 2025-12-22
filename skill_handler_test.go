@@ -9,8 +9,9 @@ import (
 )
 
 func TestInstallSkill(t *testing.T) {
-	// Create a temporary directory for tests
-	tempDir, err := os.MkdirTemp("", "sitepanda-skill-test")
+	// Create a temporary directory for tests in the current directory to avoid /tmp restriction
+	cwd, _ := os.Getwd()
+	tempDir, err := os.MkdirTemp(cwd, "sitepanda-skill-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -127,6 +128,29 @@ func TestInstallSkill(t *testing.T) {
 			input: "3\n/etc\n",
 			env:   nil,
 			expectedError: "installation path points to a system directory: /etc",
+		},
+		{
+			name:  "Install to Custom Path (Invalid - Empty)",
+			input: "3\n\n",
+			env:   nil,
+			expectedError: "installation directory path cannot be empty",
+		},
+		{
+			name:  "Install with CLAUDE_HOME",
+			input: "2\n",
+			env: map[string]string{
+				"CLAUDE_HOME": filepath.Join(tempDir, "custom_claude"),
+			},
+			expectedOutput: []string{
+				"Sitepanda skill installed for Claude Code",
+			},
+			expectedPath: filepath.Join(tempDir, "custom_claude", "skills", "sitepanda"),
+		},
+		{
+			name:          "Invalid Choice",
+			input:         "4\n",
+			env:           nil,
+			expectedError: "invalid choice: 4",
 		},
 	}
 
