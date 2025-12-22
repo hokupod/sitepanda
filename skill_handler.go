@@ -40,11 +40,8 @@ func installSkill(input io.Reader, output io.Writer, getEnv func(string) string,
 		toolName = "OpenAI Codex"
 		// Check CODEX_HOME environment variable
 		if codexHome := getEnv("CODEX_HOME"); codexHome != "" {
-			// Validate that CODEX_HOME is not a system directory
-			cleanPath := filepath.Clean(codexHome)
-			if cleanPath == "/" || cleanPath == "/etc" || cleanPath == "/usr" ||
-				cleanPath == "/bin" || cleanPath == "/sbin" || cleanPath == "/var" {
-				return fmt.Errorf("CODEX_HOME points to a system directory: %s", cleanPath)
+			if err := validateSystemPath(codexHome); err != nil {
+				return fmt.Errorf("CODEX_HOME %w", err)
 			}
 			installPath = filepath.Join(codexHome, "skills", "sitepanda")
 		} else {
@@ -73,20 +70,21 @@ func installSkill(input io.Reader, output io.Writer, getEnv func(string) string,
 			return fmt.Errorf("installation directory path cannot be empty")
 		}
 
-		// Expand '~' to user home directory
-		if strings.HasPrefix(customPath, "~/") {
+		// Expand '~' to user home directory if it's the first character
+		if customPath == "~" || strings.HasPrefix(customPath, "~"+string(os.PathSeparator)) {
 			homeDir, err := getHomeDir()
 			if err != nil {
 				return fmt.Errorf("failed to get user home directory: %w", err)
 			}
-			customPath = filepath.Join(homeDir, customPath[2:])
+			if customPath == "~" {
+				customPath = homeDir
+			} else {
+				customPath = filepath.Join(homeDir, customPath[2:])
+			}
 		}
 
-		// Validate that custom path is not a system directory
-		cleanPath := filepath.Clean(customPath)
-		if cleanPath == "/" || cleanPath == "/etc" || cleanPath == "/usr" ||
-			cleanPath == "/bin" || cleanPath == "/sbin" || cleanPath == "/var" {
-			return fmt.Errorf("installation path points to a system directory: %s", cleanPath)
+		if err := validateSystemPath(customPath); err != nil {
+			return fmt.Errorf("installation path %w", err)
 		}
 		installPath = customPath
 	default:
@@ -122,6 +120,35 @@ func installSkill(input io.Reader, output io.Writer, getEnv func(string) string,
 	fmt.Fprintf(output, "✔ Sitepanda skill installed for %s\n", toolName)
 	fmt.Fprintf(output, "  Path: %s\n\n", installPath)
 	fmt.Fprintf(output, "Restart %s to load the new skill.\n", toolName)
+
+	return nil
+}
+
+// validateSystemPath checks if the given path is a system directory
+func validateSystemPath(path string) error {
+	cleanPath := filepath.Clean(path)
+
+	// List of restricted system directories
+	restrictedPaths := []string{
+		"/", "/etc", "/usr", "/bin", "/sbin", "/var",
+		"/tmp", "/opt", "/boot", "/dev", "/proc", "/sys", "/root",
+	}
+
+	for _, restricted := range restrictedPaths {
+		if cleanPath == restricted {
+			return fmt.Errorf("points to a system directory: %s", cleanPath)
+		}
+	}
+
+	// Basic Windows system path check
+	// Note: accurate windows system path check requires runtime.GOOS == "windows" and
+	// env var lookup, but simplistic check helps catch obvious ones cross-platform
+	lowerPath := strings.ToLower(cleanPath)
+	if strings.HasPrefix(lowerPath, "c:\\windows") ||
+	   strings.HasPrefix(lowerPath, "c:\\program files") ||
+	   strings.HasPrefix(lowerPath, "c:\\program files (x86)") {
+		return fmt.Errorf("points to a system directory: %s", cleanPath)
+	}
 
 	return nil
 }

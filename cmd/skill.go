@@ -30,7 +30,7 @@ var skillInstallCmd = &cobra.Command{
 				os.Exit(1)
 			}
 		} else {
-			fmt.Println("Error: Skill install handler not set.")
+			fmt.Fprintln(os.Stderr, "Error: Skill install handler not set.")
 			os.Exit(1)
 		}
 	},

@@ -114,6 +114,15 @@ func TestInstallSkill(t *testing.T) {
 			expectedPath: filepath.Join(mockHomeDir, "custom", "tilde", "path"),
 		},
 		{
+			name:  "Install to Custom Path (Standalone Tilde)",
+			input: "3\n~\n",
+			env:   nil,
+			expectedOutput: []string{
+				"Sitepanda skill installed for Custom Tool",
+			},
+			expectedPath: mockHomeDir,
+		},
+		{
 			name:  "Install to Custom Path (Invalid - System Directory)",
 			input: "3\n/etc\n",
 			env:   nil,
