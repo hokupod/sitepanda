@@ -213,7 +213,9 @@ func TestInstallSkill(t *testing.T) {
 
 func TestInstallSkill_OverwriteCancel(t *testing.T) {
 	// Separate test for overwrite cancel to handle setup/teardown cleanly
-	tempDir, err := os.MkdirTemp("", "sitepanda-skill-cancel-test")
+	// Use current directory to avoid /tmp restriction
+	cwd, _ := os.Getwd()
+	tempDir, err := os.MkdirTemp(cwd, "sitepanda-skill-cancel-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -245,7 +247,7 @@ func TestInstallSkill_OverwriteCancel(t *testing.T) {
 	if !strings.Contains(outputStr, expectedMsg) {
 		t.Errorf("Expected output to contain overwrite prompt %q, got:\n%s", expectedMsg, outputStr)
 	}
-	if !strings.Contains(outputStr, "Installation cancelled") {
-		t.Errorf("Expected output to contain 'Installation cancelled', got:\n%s", outputStr)
+	if !strings.Contains(outputStr, "Installation canceled") {
+		t.Errorf("Expected output to contain 'Installation canceled', got:\n%s", outputStr)
 	}
 }

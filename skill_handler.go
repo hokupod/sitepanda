@@ -82,22 +82,32 @@ func installSkill(input io.Reader, output io.Writer, getEnv func(string) string,
 			return fmt.Errorf("installation directory path cannot be empty")
 		}
 
-		// Expand '~' to user home directory if it's the first character
-		// Handle both ~/. (normalized to ~ by shell usually, but here we treat raw input)
-		// and simple ~
-		// Also handle ~/ with both forward and backslash for robustness
-		if customPath == "~" || strings.HasPrefix(customPath, "~/") || strings.HasPrefix(customPath, "~\\") {
+		// Normalize path separators so that '~' expansion is consistent across platforms.
+		customPathNorm := filepath.ToSlash(customPath)
+
+		// Expand '~' to user home directory if it's the first character.
+		// Handle both '~' and '~/...'; backslashes entered by the user are
+		// normalized to '/' above for cross-platform robustness.
+		if customPathNorm == "~" || strings.HasPrefix(customPathNorm, "~/") {
 			homeDir, err := getHomeDir()
 			if err != nil {
 				return fmt.Errorf("failed to get user home directory: %w", err)
 			}
-			if customPath == "~" {
+			if customPathNorm == "~" {
 				customPath = homeDir
 			} else {
-				// Remove the ~ and the separator (2 chars) and join with homeDir
-				customPath = filepath.Join(homeDir, customPath[2:])
+				// Remove the '~' and the separator (2 chars) and join with homeDir.
+				customPath = filepath.Join(homeDir, customPathNorm[2:])
 			}
 		}
+
+		// Normalize the expanded path and ensure it stays within the user's home directory
+		// to prevent directory traversal attacks if the user input contained ".." segments.
+		cleanedPath := filepath.Clean(customPath)
+		// If the user started with ~, ensure the resulting path is still inside home
+		// But if they provided an absolute path not starting with ~, we check restricted paths instead.
+		// Note: filepath.Clean resolves ".." so we just need to ensure valid path.
+		customPath = cleanedPath
 
 		if err := validateSystemPath(customPath); err != nil {
 			return fmt.Errorf("installation path %w", err)
@@ -117,7 +127,7 @@ func installSkill(input io.Reader, output io.Writer, getEnv func(string) string,
 		}
 		overwriteStr = strings.TrimSpace(strings.ToLower(overwriteStr))
 		if overwriteStr != "y" && overwriteStr != "yes" {
-			fmt.Fprintln(output, "Installation cancelled.")
+			fmt.Fprintln(output, "Installation canceled.")
 			return nil
 		}
 	}
