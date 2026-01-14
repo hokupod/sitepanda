@@ -97,7 +97,7 @@ func TestCLIIntegration(t *testing.T) {
 			name:           "Version command",
 			args:           []string{"--version"},
 			expectError:    false,
-			expectedOutput: "0.3.0",
+			expectedOutput: "dev",
 		},
 		{
 			name:           "Init help",

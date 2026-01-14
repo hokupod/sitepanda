@@ -112,12 +112,12 @@ func TestUtilityFunctions(t *testing.T) {
 		}
 	})
 
-	t.Run("Version constant", func(t *testing.T) {
+	t.Run("Version variable", func(t *testing.T) {
 		if Version == "" {
-			t.Error("Version constant should not be empty")
+			t.Error("Version variable should not be empty")
 		}
-		if Version != "0.3.0" {
-			t.Errorf("Expected version to be '0.3.0', got %q", Version)
+		if Version != "dev" {
+			t.Errorf("Expected version to be 'dev', got %q", Version)
 		}
 	})
 
