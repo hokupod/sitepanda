@@ -6,8 +6,11 @@ import (
 	"os"
 )
 
+var (
+	Version = "dev"
+)
+
 const (
-	Version                  = "0.3.0"
 	LightpandaNightlyVersion = "nightly"
 )
 
